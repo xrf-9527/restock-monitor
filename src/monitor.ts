@@ -51,7 +51,11 @@ export const TARGETS: Target[] = [
     },
 ];
 
-const UA = 'Mozilla/5.0 (restock-watch/1.0; +https://example.invalid)';
+/**
+ * 真实浏览器 User-Agent（Chrome on Windows）
+ * 定期更新以匹配最新的浏览器版本
+ */
+const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
 
 function envInt(value: string | undefined, fallback: number): number {
     const parsed = Number.parseInt(value ?? '', 10);
@@ -75,9 +79,19 @@ async function fetchUrl(
         const response = await fetch(url, {
             headers: {
                 'User-Agent': UA,
-                'Accept-Language': 'en-US,en;q=0.9,zh-CN;q=0.8',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+                'Accept-Language': 'en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7',
+                'Accept-Encoding': 'gzip, deflate, br',
                 'Cache-Control': 'no-cache',
                 'Pragma': 'no-cache',
+                'Sec-Ch-Ua': '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+                'Sec-Ch-Ua-Mobile': '?0',
+                'Sec-Ch-Ua-Platform': '"Windows"',
+                'Sec-Fetch-Dest': 'document',
+                'Sec-Fetch-Mode': 'navigate',
+                'Sec-Fetch-Site': 'none',
+                'Sec-Fetch-User': '?1',
+                'Upgrade-Insecure-Requests': '1',
             },
             signal: controller.signal,
         });
