@@ -4,18 +4,10 @@
  */
 
 import type { Env } from './types';
-
-function envInt(value: string | undefined, fallback: number): number {
-    const parsed = Number.parseInt(value ?? '', 10);
-    return Number.isFinite(parsed) ? parsed : fallback;
-}
-
-function clampInt(value: number, min: number, max: number): number {
-    return Math.min(Math.max(value, min), max);
-}
+import { envInt, clampInt, DEFAULTS } from './utils';
 
 function defaultTimeoutMs(env: Env): number {
-    const timeoutSec = clampInt(envInt(env.TIMEOUT_SEC, 15), 1, 120);
+    const timeoutSec = clampInt(envInt(env.TIMEOUT_SEC, DEFAULTS.TIMEOUT_SEC), 1, 120);
     return timeoutSec * 1000;
 }
 

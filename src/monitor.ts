@@ -5,24 +5,10 @@
 
 import type { Env, Target, ProbeResult, State, TargetState } from './types';
 import { buildNotifiers, notifyAll } from './notifiers';
+import { envInt, clampInt, envString, formatBeijingTime, DEFAULTS } from './utils';
 
-/**
- * 格式化为北京时间字符串（带时区标识）
- * @returns 格式：YYYY-MM-DD HH:mm:ss Beijing (UTC+8)
- */
-export function formatBeijingTime(date: Date = new Date()): string {
-    const timeStr = date.toLocaleString('zh-CN', {
-        timeZone: 'Asia/Shanghai',
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: false
-    }).replace(/\//g, '-');
-    return `${timeStr} Beijing (UTC+8)`;
-}
+// 重新导出 formatBeijingTime 以保持向后兼容
+export { formatBeijingTime } from './utils';
 
 /**
  * 监控目标配置（两款套餐）
@@ -58,11 +44,6 @@ const DEFAULT_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
 const DEFAULT_CHROME_MAJOR_VERSION = '131';
 const DEFAULT_SEC_CH_UA = `"Google Chrome";v="${DEFAULT_CHROME_MAJOR_VERSION}", "Chromium";v="${DEFAULT_CHROME_MAJOR_VERSION}", "Not_A Brand";v="24"`;
 const DEFAULT_SEC_CH_UA_PLATFORM = '"Windows"';
-
-function envString(value: string | undefined): string | undefined {
-    const trimmed = (value ?? '').trim();
-    return trimmed ? trimmed : undefined;
-}
 
 function extractChromeMajorVersion(userAgent: string): string | null {
     const match = userAgent.match(/\bChrome\/(\d+)\b/i);
@@ -218,15 +199,6 @@ export function getTargets(env: Env): Target[] {
     }
 }
 
-function envInt(value: string | undefined, fallback: number): number {
-    const parsed = Number.parseInt(value ?? '', 10);
-    return Number.isFinite(parsed) ? parsed : fallback;
-}
-
-function clampInt(value: number, min: number, max: number): number {
-    return Math.min(Math.max(value, min), max);
-}
-
 /**
  * 获取页面内容
  */
@@ -297,9 +269,9 @@ function delay(ms: number): Promise<void> {
  * 探测单个目标
  */
 async function probeTarget(target: Target, env: Env, browserHeaders: BrowserHeaders): Promise<ProbeResult> {
-    const timeoutSec = clampInt(envInt(env.TIMEOUT_SEC, 15), 1, 120);
+    const timeoutSec = clampInt(envInt(env.TIMEOUT_SEC, DEFAULTS.TIMEOUT_SEC), 1, 120);
     const timeoutMs = timeoutSec * 1000;
-    const confirmDelayMs = clampInt(envInt(env.CONFIRM_DELAY_MS, 2000), 0, 60_000);
+    const confirmDelayMs = clampInt(envInt(env.CONFIRM_DELAY_MS, DEFAULTS.CONFIRM_DELAY_MS), 0, 60_000);
 
     let lastReason = 'fetch_failed';
     let lastUsedUrl: string | null = null;
@@ -402,9 +374,9 @@ export async function runCheck(env: Env): Promise<string> {
     const targets = getTargets(env);
     const browserHeaders = buildBrowserHeaders(env);
 
-    const inConfirmationsRequired = clampInt(envInt(env.IN_CONFIRMATIONS_REQUIRED, 1), 1, 10);
-    const errorStreakNotifyThreshold = clampInt(envInt(env.ERROR_STREAK_NOTIFY_THRESHOLD, 5), 1, 100);
-    const errorNotifyCooldownSec = clampInt(envInt(env.ERROR_NOTIFY_COOLDOWN_SEC, 1800), 0, 86400);
+    const inConfirmationsRequired = clampInt(envInt(env.IN_CONFIRMATIONS_REQUIRED, DEFAULTS.IN_CONFIRMATIONS_REQUIRED), 1, 10);
+    const errorStreakNotifyThreshold = clampInt(envInt(env.ERROR_STREAK_NOTIFY_THRESHOLD, DEFAULTS.ERROR_STREAK_NOTIFY_THRESHOLD), 1, 100);
+    const errorNotifyCooldownSec = clampInt(envInt(env.ERROR_NOTIFY_COOLDOWN_SEC, DEFAULTS.ERROR_NOTIFY_COOLDOWN_SEC), 0, 86400);
 
     const changes: string[] = [];
 
