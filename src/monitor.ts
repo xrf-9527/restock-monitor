@@ -7,11 +7,11 @@ import type { Env, Target, ProbeResult, State, TargetState } from './types';
 import { buildNotifiers, notifyAll } from './notifiers';
 
 /**
- * 格式化为北京时间字符串
- * @returns 格式：YYYY-MM-DD HH:mm:ss
+ * 格式化为北京时间字符串（带时区标识）
+ * @returns 格式：YYYY-MM-DD HH:mm:ss Beijing (UTC+8)
  */
 export function formatBeijingTime(date: Date = new Date()): string {
-    return date.toLocaleString('zh-CN', {
+    const timeStr = date.toLocaleString('zh-CN', {
         timeZone: 'Asia/Shanghai',
         year: 'numeric',
         month: '2-digit',
@@ -21,6 +21,7 @@ export function formatBeijingTime(date: Date = new Date()): string {
         second: '2-digit',
         hour12: false
     }).replace(/\//g, '-');
+    return `${timeStr} Beijing (UTC+8)`;
 }
 
 /**
