@@ -69,6 +69,10 @@ export async function fetchUrl(
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     try {
+        // 构建 Referer：使用目标站点首页，模拟站内导航
+        const urlObj = new URL(url);
+        const referer = `${urlObj.protocol}//${urlObj.host}/`;
+
         const response = await fetch(url, {
             headers: {
                 'User-Agent': browserHeaders.userAgent,
@@ -77,12 +81,13 @@ export async function fetchUrl(
                 'Accept-Encoding': 'gzip, deflate, br',
                 'Cache-Control': 'no-cache',
                 'Pragma': 'no-cache',
+                'Referer': referer,
                 'Sec-Ch-Ua': browserHeaders.secChUa,
                 'Sec-Ch-Ua-Mobile': browserHeaders.secChUaMobile,
                 'Sec-Ch-Ua-Platform': browserHeaders.secChUaPlatform,
                 'Sec-Fetch-Dest': 'document',
                 'Sec-Fetch-Mode': 'navigate',
-                'Sec-Fetch-Site': 'none',
+                'Sec-Fetch-Site': 'same-origin',
                 'Sec-Fetch-User': '?1',
                 'Upgrade-Insecure-Requests': '1',
             },

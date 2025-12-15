@@ -165,7 +165,12 @@ async function handleProbeError(
         const title = '⚠️ 补货监控异常';
         const text = `${name}\n原因: ${result.reason}\n建议: 检查网络/WAF/关键词/域名可达性`;
         const notifyResult = await notifyAll(notifiers, title, text);
-        if (notifyResult.sent > 0) ctx.lastErrNotifyTs = now;
+        if (notifyResult.sent > 0) {
+            ctx.lastErrNotifyTs = now;
+            // 重置错误计数，避免每次冷却期结束后重复通知
+            // 需要再次累积足够的连续错误才会再次通知
+            ctx.errStreak = 0;
+        }
     }
 
     return ctx;
