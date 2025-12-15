@@ -7,6 +7,23 @@ import type { Env, Target, ProbeResult, State, TargetState } from './types';
 import { buildNotifiers, notifyAll } from './notifiers';
 
 /**
+ * 格式化为北京时间字符串
+ * @returns 格式：YYYY-MM-DD HH:mm:ss
+ */
+export function formatBeijingTime(date: Date = new Date()): string {
+    return date.toLocaleString('zh-CN', {
+        timeZone: 'Asia/Shanghai',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+    }).replace(/\//g, '-');
+}
+
+/**
  * 监控目标配置（两款套餐）
  */
 export const TARGETS: Target[] = [
@@ -295,7 +312,7 @@ export async function runCheck(env: Env): Promise<string> {
 
     await saveState(env, state);
 
-    const timestamp = new Date().toISOString();
+    const timestamp = formatBeijingTime();
     if (changes.length > 0) {
         const msg = `[${timestamp}] State changes:\n${changes.join('\n')}`;
         console.log(msg);

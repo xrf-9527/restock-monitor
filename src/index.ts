@@ -4,7 +4,7 @@
  */
 
 import type { Env } from './types';
-import { runCheck, getStatus } from './monitor';
+import { runCheck, getStatus, formatBeijingTime } from './monitor';
 
 function responseHeaders(contentType: string): Record<string, string> {
     return {
@@ -126,7 +126,7 @@ Cron: */2 * * * * (每 2 分钟自动执行)
         env: Env,
         ctx: ExecutionContext
     ): Promise<void> {
-        console.log(`Cron triggered at ${new Date().toISOString()}`);
+        console.log(`Cron triggered at ${formatBeijingTime()}`);
         ctx.waitUntil(
             runCheck(env).catch((error) => {
                 console.error('runCheck failed:', error);
