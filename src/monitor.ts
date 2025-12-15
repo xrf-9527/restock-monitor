@@ -52,10 +52,171 @@ export const TARGETS: Target[] = [
 ];
 
 /**
- * 真实浏览器 User-Agent（Chrome on Windows）
- * 定期更新以匹配最新的浏览器版本
+ * 默认浏览器请求头（Chrome on Windows）
  */
-const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
+const DEFAULT_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
+const DEFAULT_CHROME_MAJOR_VERSION = '131';
+const DEFAULT_SEC_CH_UA = `"Google Chrome";v="${DEFAULT_CHROME_MAJOR_VERSION}", "Chromium";v="${DEFAULT_CHROME_MAJOR_VERSION}", "Not_A Brand";v="24"`;
+const DEFAULT_SEC_CH_UA_PLATFORM = '"Windows"';
+
+function envString(value: string | undefined): string | undefined {
+    const trimmed = (value ?? '').trim();
+    return trimmed ? trimmed : undefined;
+}
+
+function extractChromeMajorVersion(userAgent: string): string | null {
+    const match = userAgent.match(/\bChrome\/(\d+)\b/i);
+    return match ? match[1] : null;
+}
+
+function isMobileUserAgent(userAgent: string): boolean {
+    return /\bMobile\b/i.test(userAgent) || /\bAndroid\b/i.test(userAgent) || /\biPhone\b/i.test(userAgent) || /\biPad\b/i.test(userAgent);
+}
+
+function detectSecChUaPlatform(userAgent: string): string {
+    if (/\bWindows\b/i.test(userAgent)) return '"Windows"';
+    if (/\bAndroid\b/i.test(userAgent)) return '"Android"';
+    if (/\biPhone\b/i.test(userAgent) || /\biPad\b/i.test(userAgent) || /\biPod\b/i.test(userAgent)) return '"iOS"';
+    if (/\bMacintosh\b/i.test(userAgent) || /\bMac OS X\b/i.test(userAgent)) return '"macOS"';
+    if (/\bLinux\b/i.test(userAgent)) return '"Linux"';
+    return DEFAULT_SEC_CH_UA_PLATFORM;
+}
+
+type BrowserHeaders = {
+    userAgent: string;
+    secChUa: string;
+    secChUaMobile: string;
+    secChUaPlatform: string;
+};
+
+function buildBrowserHeaders(env: Env): BrowserHeaders {
+    const userAgent = envString(env.USER_AGENT) ?? DEFAULT_UA;
+    const chromeMajorVersion = extractChromeMajorVersion(userAgent);
+
+    const secChUa = chromeMajorVersion
+        ? `"Google Chrome";v="${chromeMajorVersion}", "Chromium";v="${chromeMajorVersion}", "Not_A Brand";v="24"`
+        : DEFAULT_SEC_CH_UA;
+
+    const secChUaMobile = isMobileUserAgent(userAgent) ? '?1' : '?0';
+    const secChUaPlatform = detectSecChUaPlatform(userAgent);
+
+    return {
+        userAgent,
+        secChUa,
+        secChUaMobile,
+        secChUaPlatform,
+    };
+}
+
+type RegexJson = string | { source: string; flags?: string };
+type TargetJson = {
+    name: string;
+    urls: string[];
+    mustContainAny: string[];
+    outOfStockRegex: RegexJson[];
+};
+
+function normalizeStringArray(value: unknown): string[] {
+    if (!Array.isArray(value)) return [];
+    const result: string[] = [];
+    for (const item of value) {
+        if (typeof item !== 'string') continue;
+        const trimmed = item.trim();
+        if (trimmed) result.push(trimmed);
+    }
+    return result;
+}
+
+function parseRegexJson(value: unknown): RegExp | null {
+    if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (!trimmed) return null;
+
+        const slashed = trimmed.match(/^\/(.+)\/([a-z]*)$/i);
+        if (slashed) {
+            try {
+                return new RegExp(slashed[1], slashed[2]);
+            } catch {
+                return null;
+            }
+        }
+
+        try {
+            return new RegExp(trimmed, 'i');
+        } catch {
+            return null;
+        }
+    }
+
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+        const record = value as Record<string, unknown>;
+        const source = typeof record.source === 'string' ? record.source : null;
+        if (!source) return null;
+
+        const flags = typeof record.flags === 'string' ? record.flags : 'i';
+        try {
+            return new RegExp(source, flags);
+        } catch {
+            return null;
+        }
+    }
+
+    return null;
+}
+
+function parseTargetJson(value: unknown): Target | null {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+    const record = value as Record<string, unknown>;
+
+    const name = typeof record.name === 'string' ? record.name.trim() : '';
+    if (!name) return null;
+
+    const urls = normalizeStringArray(record.urls);
+    const mustContainAny = normalizeStringArray(record.mustContainAny);
+    if (urls.length === 0 || mustContainAny.length === 0) return null;
+
+    const outOfStockRegexRaw = Array.isArray(record.outOfStockRegex) ? record.outOfStockRegex : [];
+    const outOfStockRegex: RegExp[] = [];
+    for (const item of outOfStockRegexRaw) {
+        const re = parseRegexJson(item);
+        if (re) outOfStockRegex.push(re);
+    }
+    if (outOfStockRegex.length === 0) return null;
+
+    return { name, urls, mustContainAny, outOfStockRegex };
+}
+
+function parseTargetsJson(value: unknown): Target[] | null {
+    if (!Array.isArray(value)) return null;
+
+    const targets: Target[] = [];
+    for (const item of value) {
+        const target = parseTargetJson(item);
+        if (!target) {
+            console.warn('Skipping invalid TARGETS_JSON item:', item);
+            continue;
+        }
+        targets.push(target);
+    }
+
+    return targets.length > 0 ? targets : null;
+}
+
+export function getTargets(env: Env): Target[] {
+    const raw = envString(env.TARGETS_JSON);
+    if (!raw) return TARGETS;
+
+    try {
+        const parsed = JSON.parse(raw) as unknown;
+        const targets = parseTargetsJson(parsed);
+        if (targets) return targets;
+        console.warn('TARGETS_JSON is invalid or empty, using default TARGETS.');
+        return TARGETS;
+    } catch (error) {
+        console.warn('Failed to parse TARGETS_JSON, using default TARGETS:', error);
+        return TARGETS;
+    }
+}
 
 function envInt(value: string | undefined, fallback: number): number {
     const parsed = Number.parseInt(value ?? '', 10);
@@ -71,22 +232,23 @@ function clampInt(value: number, min: number, max: number): number {
  */
 async function fetchUrl(
     url: string,
-    timeoutMs: number
+    timeoutMs: number,
+    browserHeaders: BrowserHeaders
 ): Promise<{ html: string | null; status: number }> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     try {
         const response = await fetch(url, {
             headers: {
-                'User-Agent': UA,
+                'User-Agent': browserHeaders.userAgent,
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
                 'Accept-Language': 'en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7',
                 'Accept-Encoding': 'gzip, deflate, br',
                 'Cache-Control': 'no-cache',
                 'Pragma': 'no-cache',
-                'Sec-Ch-Ua': '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
-                'Sec-Ch-Ua-Mobile': '?0',
-                'Sec-Ch-Ua-Platform': '"Windows"',
+                'Sec-Ch-Ua': browserHeaders.secChUa,
+                'Sec-Ch-Ua-Mobile': browserHeaders.secChUaMobile,
+                'Sec-Ch-Ua-Platform': browserHeaders.secChUaPlatform,
                 'Sec-Fetch-Dest': 'document',
                 'Sec-Fetch-Mode': 'navigate',
                 'Sec-Fetch-Site': 'none',
@@ -134,7 +296,7 @@ function delay(ms: number): Promise<void> {
 /**
  * 探测单个目标
  */
-async function probeTarget(target: Target, env: Env): Promise<ProbeResult> {
+async function probeTarget(target: Target, env: Env, browserHeaders: BrowserHeaders): Promise<ProbeResult> {
     const timeoutSec = clampInt(envInt(env.TIMEOUT_SEC, 15), 1, 120);
     const timeoutMs = timeoutSec * 1000;
     const confirmDelayMs = clampInt(envInt(env.CONFIRM_DELAY_MS, 2000), 0, 60_000);
@@ -144,7 +306,7 @@ async function probeTarget(target: Target, env: Env): Promise<ProbeResult> {
 
     for (const url of target.urls) {
         lastUsedUrl = url;
-        const { html, status } = await fetchUrl(url, timeoutMs);
+        const { html, status } = await fetchUrl(url, timeoutMs, browserHeaders);
 
         if (!html) {
             lastReason = `http_${status || 'error'}`;
@@ -169,7 +331,7 @@ async function probeTarget(target: Target, env: Env): Promise<ProbeResult> {
         // 看起来 IN：做一次短延迟二次确认（同 URL）
         await delay(confirmDelayMs);
 
-        const { html: html2, status: status2 } = await fetchUrl(url, timeoutMs);
+        const { html: html2, status: status2 } = await fetchUrl(url, timeoutMs, browserHeaders);
 
         if (!html2) {
             lastReason = `confirm_http_${status2 || 'error'}`;
@@ -237,6 +399,8 @@ export async function runCheck(env: Env): Promise<string> {
     const notifiers = buildNotifiers(env);
     const state = await loadState(env);
     const now = Math.floor(Date.now() / 1000);
+    const targets = getTargets(env);
+    const browserHeaders = buildBrowserHeaders(env);
 
     const inConfirmationsRequired = clampInt(envInt(env.IN_CONFIRMATIONS_REQUIRED, 1), 1, 10);
     const errorStreakNotifyThreshold = clampInt(envInt(env.ERROR_STREAK_NOTIFY_THRESHOLD, 5), 1, 100);
@@ -244,7 +408,7 @@ export async function runCheck(env: Env): Promise<string> {
 
     const changes: string[] = [];
 
-    for (const target of TARGETS) {
+    for (const target of targets) {
         const name = target.name;
         const s: TargetState = {
             status: 'OUT',
@@ -270,7 +434,7 @@ export async function runCheck(env: Env): Promise<string> {
             lastInNotifyOkTs,
         } = s;
 
-        const result = await probeTarget(target, env);
+        const result = await probeTarget(target, env, browserHeaders);
 
         if (result.status === 'ERROR') {
             errStreak += 1;

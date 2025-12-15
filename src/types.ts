@@ -61,6 +61,12 @@ export interface Env {
     ERROR_NOTIFY_COOLDOWN_SEC: string;
     ALERT_PREFIX: string;
 
+    // 可选：覆盖探测请求 User-Agent（默认内置 Chrome UA）
+    USER_AGENT?: string;
+
+    // 可选：通过 JSON 字符串覆盖监控目标列表
+    TARGETS_JSON?: string;
+
     // Telegram
     TG_BOT_TOKEN?: string;
     TG_CHAT_ID?: string;

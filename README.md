@@ -103,6 +103,8 @@ npm run deploy
 
 ## 监控目标
 
+如需免部署调整目标，可通过 `TARGETS_JSON` 覆盖（见下方“配置说明”）。
+
 | 套餐 | URL |
 |------|-----|
 | BandwagonHost MegaBox Pro | https://bwh81.net/cart.php?a=add&pid=157 |
@@ -120,6 +122,21 @@ npm run deploy
 | `ERROR_STREAK_NOTIFY_THRESHOLD` | 错误通知阈值 | 5 |
 | `ERROR_NOTIFY_COOLDOWN_SEC` | 错误通知冷却（秒） | 1800 |
 | `ALERT_PREFIX` | 消息前缀（用于关键词安全策略） | "" |
+| `USER_AGENT` | 覆盖探测请求的 User-Agent（建议使用 Chrome UA） | "" |
+| `TARGETS_JSON` | 覆盖监控目标（JSON 字符串） | "" |
+
+`TARGETS_JSON` 示例（JSON 数组；`outOfStockRegex` 支持 `{ "source": "...", "flags": "i" }` 或字符串）：
+
+```json
+[
+  {
+    "name": "Example Plan (pid=123)",
+    "urls": ["https://example.com/cart.php?a=add&pid=123"],
+    "mustContainAny": ["Shopping Cart", "Example"],
+    "outOfStockRegex": [{ "source": "\\bOut of Stock\\b", "flags": "i" }]
+  }
+]
+```
 
 ### Secrets（敏感信息）
 

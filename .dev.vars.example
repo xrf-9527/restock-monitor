@@ -19,5 +19,11 @@ DINGTALK_SECRET=
 # 例如：监控报警
 ALERT_PREFIX=
 
+# 可选：覆盖探测请求 User-Agent（建议使用 Chrome UA）
+USER_AGENT=
+
+# 可选：覆盖监控目标（JSON 字符串，数组）
+TARGETS_JSON=
+
 # 可选：保护 HTTP 端点（Authorization: Bearer <token> 或 X-Admin-Token）
 ADMIN_TOKEN=

@@ -98,6 +98,8 @@ curl -H "Authorization: Bearer $ADMIN_TOKEN" http://localhost:8787/status
 - `ERROR_STREAK_NOTIFY_THRESHOLD`：错误通知阈值（默认 5）
 - `ERROR_NOTIFY_COOLDOWN_SEC`：错误通知冷却（默认 1800）
 - `ALERT_PREFIX`：机器人关键词前缀（可选）
+- `USER_AGENT`：覆盖探测请求 User-Agent（可选；建议使用 Chrome UA）
+- `TARGETS_JSON`：覆盖监控目标（可选；JSON 字符串）
 
 敏感配置（建议用 `wrangler secret put`）：
 

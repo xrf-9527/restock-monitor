@@ -4,7 +4,7 @@
  */
 
 import type { Env } from './types';
-import { runCheck, getStatus, formatBeijingTime } from './monitor';
+import { runCheck, getStatus, formatBeijingTime, getTargets } from './monitor';
 
 function responseHeaders(contentType: string): Record<string, string> {
     return {
@@ -97,6 +97,11 @@ export default {
         }
 
         // 其他路径返回使用说明
+        const targets = getTargets(env);
+        const targetLines = targets.length > 0
+            ? targets.map((t) => `  - ${t.name}`).join('\n')
+            : '  - (none)';
+
         return new Response(
             `Restock Monitor
 
@@ -108,8 +113,8 @@ Endpoints:
 Cron: */2 * * * * (每 2 分钟自动执行)
 
 监控目标:
-  - BandwagonHost MegaBox Pro (pid=157)
-  - DMIT LAX.Pro.MALIBU (pid=186)
+${targetLines}
+(可通过 TARGETS_JSON 覆盖)
 `,
             {
                 headers: responseHeaders('text/plain; charset=utf-8'),
