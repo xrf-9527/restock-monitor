@@ -30,6 +30,14 @@ ALERT_PREFIX = ""
 USER_AGENT = ""
 TARGETS_JSON = ""
 
+# Workers Logs 配置 - 用于日志记录和调试
+[observability]
+[observability.logs]
+enabled = true
+head_sampling_rate = 1
+invocation_logs = true
+persist = true
+
 # Secrets（敏感信息）通过 wrangler secret put 添加:
 # - ADMIN_TOKEN (可选：保护 HTTP 端点)
 # - TG_BOT_TOKEN
