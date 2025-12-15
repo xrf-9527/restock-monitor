@@ -112,6 +112,138 @@ async function probeTarget(target: Target, env: Env, browserHeaders: BrowserHead
     };
 }
 
+/** 检查配置参数 */
+interface CheckConfig {
+    inConfirmationsRequired: number;
+    errorStreakNotifyThreshold: number;
+    errorNotifyCooldownSec: number;
+}
+
+/** 状态处理上下文 */
+interface StateContext {
+    prevStatus: 'OUT' | 'IN';
+    inSinceTs: number;
+    inStreak: number;
+    errStreak: number;
+    lastErrNotifyTs: number;
+    lastInNotifyAttemptTs: number;
+    lastInNotifyOkTs: number;
+}
+
+/** 默认目标状态 */
+function getDefaultTargetState(): TargetState {
+    return {
+        status: 'OUT',
+        inSinceTs: 0,
+        inStreak: 0,
+        errStreak: 0,
+        lastErrNotifyTs: 0,
+        lastInNotifyAttemptTs: 0,
+        lastInNotifyOkTs: 0,
+        lastUsedUrl: null,
+        lastReason: '',
+        ts: 0,
+    };
+}
+
+/** 处理探测错误 */
+async function handleProbeError(
+    ctx: StateContext,
+    result: ProbeResult,
+    name: string,
+    now: number,
+    config: CheckConfig,
+    notifiers: import('./notifiers').Notifier[]
+): Promise<StateContext> {
+    ctx.errStreak += 1;
+
+    // 错误达到阈值且超过冷却时间才通知
+    if (
+        ctx.errStreak >= config.errorStreakNotifyThreshold &&
+        now - ctx.lastErrNotifyTs >= config.errorNotifyCooldownSec
+    ) {
+        const title = '⚠️ 补货监控异常';
+        const text = `${name}\n原因: ${result.reason}\n建议: 检查网络/WAF/关键词/域名可达性`;
+        const notifyResult = await notifyAll(notifiers, title, text);
+        if (notifyResult.sent > 0) ctx.lastErrNotifyTs = now;
+    }
+
+    return ctx;
+}
+
+/** 处理缺货状态 */
+function handleOutOfStock(
+    ctx: StateContext,
+    result: ProbeResult,
+    name: string,
+    changes: string[]
+): StateContext {
+    ctx.inStreak = 0;
+    if (ctx.prevStatus !== 'OUT') {
+        changes.push(`${name}: IN -> OUT (${result.usedUrl})`);
+    }
+    ctx.prevStatus = 'OUT';
+    ctx.inSinceTs = 0;
+    return ctx;
+}
+
+/** 处理有货状态 */
+async function handleInStock(
+    ctx: StateContext,
+    result: ProbeResult,
+    name: string,
+    now: number,
+    config: CheckConfig,
+    notifiers: import('./notifiers').Notifier[],
+    changes: string[]
+): Promise<StateContext> {
+    if (ctx.prevStatus === 'OUT') {
+        // 从 OUT 转向 IN：累计确认次数
+        ctx.inStreak += 1;
+        if (ctx.inStreak >= config.inConfirmationsRequired) {
+            // 达到连续确认次数：认定补货
+            ctx.prevStatus = 'IN';
+            ctx.inSinceTs = now;
+            const title = '🎉 可能补货了（OUT → IN）';
+            const text = `${name}\n入口: ${result.usedUrl}\n连续确认: ${ctx.inStreak}/${config.inConfirmationsRequired}\n提示: 立即打开下单页尝试加入购物车/结算`;
+            const notifyResult = await notifyAll(notifiers, title, text);
+            ctx.lastInNotifyAttemptTs = now;
+            if (notifyResult.sent > 0) ctx.lastInNotifyOkTs = now;
+            changes.push(`${name}: OUT -> IN (${result.usedUrl})`);
+        }
+    } else {
+        // 已经是 IN：维持状态
+        ctx.prevStatus = 'IN';
+        ctx.inStreak = Math.max(ctx.inStreak, config.inConfirmationsRequired);
+
+        // 如果补货通知在状态切换时全部失败：后续在 IN 状态下继续重试
+        if (notifiers.length > 0 && ctx.lastInNotifyOkTs < ctx.inSinceTs) {
+            const title = '🎉 可能补货了（OUT → IN）';
+            const text = `${name}\n入口: ${result.usedUrl}\n提示: 立即打开下单页尝试加入购物车/结算\n(补货通知重试)`;
+            const notifyResult = await notifyAll(notifiers, title, text);
+            ctx.lastInNotifyAttemptTs = now;
+            if (notifyResult.sent > 0) ctx.lastInNotifyOkTs = now;
+        }
+    }
+    return ctx;
+}
+
+/** 构建最终状态 */
+function buildTargetState(ctx: StateContext, result: ProbeResult, now: number): TargetState {
+    return {
+        status: ctx.prevStatus,
+        inSinceTs: ctx.inSinceTs,
+        inStreak: ctx.inStreak,
+        errStreak: ctx.errStreak,
+        lastErrNotifyTs: ctx.lastErrNotifyTs,
+        lastInNotifyAttemptTs: ctx.lastInNotifyAttemptTs,
+        lastInNotifyOkTs: ctx.lastInNotifyOkTs,
+        lastUsedUrl: result.usedUrl,
+        lastReason: result.reason,
+        ts: now,
+    };
+}
+
 /**
  * 执行完整检查流程
  */
@@ -122,136 +254,58 @@ export async function runCheck(env: Env): Promise<string> {
     const targets = getTargets(env);
     const browserHeaders = buildBrowserHeaders(env);
 
-    const inConfirmationsRequired = clampInt(envInt(env.IN_CONFIRMATIONS_REQUIRED, DEFAULTS.IN_CONFIRMATIONS_REQUIRED), 1, 10);
-    const errorStreakNotifyThreshold = clampInt(envInt(env.ERROR_STREAK_NOTIFY_THRESHOLD, DEFAULTS.ERROR_STREAK_NOTIFY_THRESHOLD), 1, 100);
-    const errorNotifyCooldownSec = clampInt(envInt(env.ERROR_NOTIFY_COOLDOWN_SEC, DEFAULTS.ERROR_NOTIFY_COOLDOWN_SEC), 0, 86400);
+    const config: CheckConfig = {
+        inConfirmationsRequired: clampInt(envInt(env.IN_CONFIRMATIONS_REQUIRED, DEFAULTS.IN_CONFIRMATIONS_REQUIRED), 1, 10),
+        errorStreakNotifyThreshold: clampInt(envInt(env.ERROR_STREAK_NOTIFY_THRESHOLD, DEFAULTS.ERROR_STREAK_NOTIFY_THRESHOLD), 1, 100),
+        errorNotifyCooldownSec: clampInt(envInt(env.ERROR_NOTIFY_COOLDOWN_SEC, DEFAULTS.ERROR_NOTIFY_COOLDOWN_SEC), 0, 86400),
+    };
 
     const changes: string[] = [];
 
     for (const target of targets) {
         const name = target.name;
-        const s: TargetState = {
-            status: 'OUT',
-            inSinceTs: 0,
-            inStreak: 0,
-            errStreak: 0,
-            lastErrNotifyTs: 0,
-            lastInNotifyAttemptTs: 0,
-            lastInNotifyOkTs: 0,
-            lastUsedUrl: null,
-            lastReason: '',
-            ts: 0,
-            ...(state[name] as Partial<TargetState> | undefined),
-        };
+        const savedState = state[name] as Partial<TargetState> | undefined;
+        const defaultState = getDefaultTargetState();
+        const s: TargetState = { ...defaultState, ...savedState };
 
-        let {
-            status: prevStatus,
-            inSinceTs,
-            inStreak,
-            errStreak,
-            lastErrNotifyTs,
-            lastInNotifyAttemptTs,
-            lastInNotifyOkTs,
-        } = s;
+        let ctx: StateContext = {
+            prevStatus: s.status,
+            inSinceTs: s.inSinceTs,
+            inStreak: s.inStreak,
+            errStreak: s.errStreak,
+            lastErrNotifyTs: s.lastErrNotifyTs,
+            lastInNotifyAttemptTs: s.lastInNotifyAttemptTs,
+            lastInNotifyOkTs: s.lastInNotifyOkTs,
+        };
 
         const result = await probeTarget(target, env, browserHeaders);
 
         if (result.status === 'ERROR') {
-            errStreak += 1;
-
-            // 错误达到阈值且超过冷却时间才通知
-            if (
-                errStreak >= errorStreakNotifyThreshold &&
-                now - lastErrNotifyTs >= errorNotifyCooldownSec
-            ) {
-                const title = '⚠️ 补货监控异常';
-                const text = `${name}\n原因: ${result.reason}\n建议: 检查网络/WAF/关键词/域名可达性`;
-                const notifyResult = await notifyAll(notifiers, title, text);
-                if (notifyResult.sent > 0) lastErrNotifyTs = now;
-            }
-
-            // ERROR 不改变 prevStatus
-            state[name] = {
-                status: prevStatus,
-                inSinceTs,
-                inStreak,
-                errStreak,
-                lastErrNotifyTs,
-                lastInNotifyAttemptTs,
-                lastInNotifyOkTs,
-                lastUsedUrl: result.usedUrl,
-                lastReason: result.reason,
-                ts: now,
-            };
+            ctx = await handleProbeError(ctx, result, name, now, config, notifiers);
+            state[name] = buildTargetState(ctx, result, now);
             continue;
         }
 
         // probe OK：清空错误计数
-        errStreak = 0;
+        ctx.errStreak = 0;
 
         if (result.status === 'OUT') {
-            inStreak = 0;
-            if (prevStatus !== 'OUT') {
-                changes.push(`${name}: IN -> OUT (${result.usedUrl})`);
-            }
-            prevStatus = 'OUT';
-            inSinceTs = 0;
+            ctx = handleOutOfStock(ctx, result, name, changes);
         } else if (result.status === 'IN') {
-            if (prevStatus === 'OUT') {
-                inStreak += 1;
-                if (inStreak >= inConfirmationsRequired) {
-                    // 达到连续确认次数：认定补货
-                    prevStatus = 'IN';
-                    inSinceTs = now;
-                    const title = '🎉 可能补货了（OUT → IN）';
-                    const text = `${name}\n入口: ${result.usedUrl}\n连续确认: ${inStreak}/${inConfirmationsRequired}\n提示: 立即打开下单页尝试加入购物车/结算`;
-                    const notifyResult = await notifyAll(notifiers, title, text);
-                    lastInNotifyAttemptTs = now;
-                    if (notifyResult.sent > 0) lastInNotifyOkTs = now;
-                    changes.push(`${name}: OUT -> IN (${result.usedUrl})`);
-                }
-            } else {
-                // 已经是 IN，维持
-                prevStatus = 'IN';
-                inStreak = Math.max(inStreak, inConfirmationsRequired);
-
-                // 如果补货通知在状态切换时全部失败：后续在 IN 状态下继续重试，直到至少一个渠道发送成功
-                if (notifiers.length > 0 && lastInNotifyOkTs < inSinceTs) {
-                    const title = '🎉 可能补货了（OUT → IN）';
-                    const text = `${name}\n入口: ${result.usedUrl}\n提示: 立即打开下单页尝试加入购物车/结算\n(补货通知重试)`;
-                    const notifyResult = await notifyAll(notifiers, title, text);
-                    lastInNotifyAttemptTs = now;
-                    if (notifyResult.sent > 0) lastInNotifyOkTs = now;
-                }
-            }
+            ctx = await handleInStock(ctx, result, name, now, config, notifiers, changes);
         }
 
-        state[name] = {
-            status: prevStatus,
-            inSinceTs,
-            inStreak,
-            errStreak,
-            lastErrNotifyTs,
-            lastInNotifyAttemptTs,
-            lastInNotifyOkTs,
-            lastUsedUrl: result.usedUrl,
-            lastReason: result.reason,
-            ts: now,
-        };
+        state[name] = buildTargetState(ctx, result, now);
     }
 
     await saveState(env, state);
 
     const timestamp = formatBeijingTime();
-    if (changes.length > 0) {
-        const msg = `[${timestamp}] State changes:\n${changes.join('\n')}`;
-        console.log(msg);
-        return msg;
-    } else {
-        const msg = `[${timestamp}] OK - no changes`;
-        console.log(msg);
-        return msg;
-    }
+    const msg = changes.length > 0
+        ? `[${timestamp}] State changes:\n${changes.join('\n')}`
+        : `[${timestamp}] OK - no changes`;
+    console.log(msg);
+    return msg;
 }
 
 /**
