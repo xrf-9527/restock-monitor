@@ -8,6 +8,7 @@ import { buildNotifiers, notifyAll } from './notifiers';
 import { envInt, clampInt, formatBeijingTime, DEFAULTS } from './utils';
 import { getTargets } from './config';
 import { buildBrowserHeaders, fetchUrl, type BrowserHeaders } from './http';
+import { loadState, saveState } from './state';
 
 // 重新导出以保持向后兼容
 export { formatBeijingTime } from './utils';
@@ -109,30 +110,6 @@ async function probeTarget(target: Target, env: Env, browserHeaders: BrowserHead
         usedUrl: lastUsedUrl,
         reason: lastReason,
     };
-}
-
-/**
- * 加载状态
- */
-async function loadState(env: Env): Promise<State> {
-    const stateJson = await env.STOCK_STATE.get('state');
-    if (!stateJson) return {};
-    try {
-        const parsed = JSON.parse(stateJson) as unknown;
-        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-            return parsed as State;
-        }
-    } catch (error) {
-        console.warn('Invalid state in KV, resetting:', error);
-    }
-    return {};
-}
-
-/**
- * 保存状态
- */
-async function saveState(env: Env, state: State): Promise<void> {
-    await env.STOCK_STATE.put('state', JSON.stringify(state));
 }
 
 /**
