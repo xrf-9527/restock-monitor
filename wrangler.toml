@@ -2,6 +2,11 @@ name = "restock-monitor"
 main = "src/index.ts"
 compatibility_date = "2024-12-15"
 
+# 自定义域名配置
+routes = [
+    { pattern = "restock.xrf.sh", custom_domain = true }
+]
+
 # KV 命名空间绑定 - 用于存储状态
 # 部署前需要创建: npx wrangler kv namespace create STOCK_STATE
 # 然后将返回的 id 填入下方
