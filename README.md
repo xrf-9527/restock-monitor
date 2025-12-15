@@ -116,7 +116,7 @@ npm run deploy
 |------|------|--------|
 | `TIMEOUT_SEC` | HTTP 请求超时（秒） | 15 |
 | `CONFIRM_DELAY_MS` | 二次确认延迟（毫秒） | 2000 |
-| `IN_CONFIRMATIONS_REQUIRED` | 连续确认次数 | 2 |
+| `IN_CONFIRMATIONS_REQUIRED` | 连续确认次数 | 1 |
 | `ERROR_STREAK_NOTIFY_THRESHOLD` | 错误通知阈值 | 5 |
 | `ERROR_NOTIFY_COOLDOWN_SEC` | 错误通知冷却（秒） | 1800 |
 | `ALERT_PREFIX` | 消息前缀（用于关键词安全策略） | "" |
@@ -156,3 +156,4 @@ npm run deploy
 - **OUT → IN**：补货通知触发点
 
 只有当状态从 OUT 变为 IN 且连续确认达到阈值时，才会发送补货通知。
+如补货通知在触发时所有渠道都发送失败，后续检查会在目标保持 IN 的情况下自动重试，避免漏报。

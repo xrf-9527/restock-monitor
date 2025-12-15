@@ -27,9 +27,12 @@ export interface ProbeResult {
  */
 export interface TargetState {
     status: 'OUT' | 'IN';
+    inSinceTs: number;
     inStreak: number;
     errStreak: number;
     lastErrNotifyTs: number;
+    lastInNotifyAttemptTs: number;
+    lastInNotifyOkTs: number;
     lastUsedUrl: string | null;
     lastReason: string;
     ts: number;

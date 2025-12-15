@@ -48,6 +48,13 @@ export interface Notifier {
     send(title: string, text: string): Promise<void>;
 }
 
+export interface NotifyResult {
+    attempted: number;
+    sent: number;
+    failed: number;
+    errors: string[];
+}
+
 /**
  * Telegram 通知器
  */
@@ -248,21 +255,27 @@ export async function notifyAll(
     notifiers: Notifier[],
     title: string,
     text: string
-): Promise<void> {
-    if (notifiers.length === 0) return;
+): Promise<NotifyResult> {
+    if (notifiers.length === 0) {
+        return { attempted: 0, sent: 0, failed: 0, errors: [] };
+    }
+
+    const settled = await Promise.allSettled(notifiers.map((n) => n.send(title, text)));
+
+    let sent = 0;
     const errors: string[] = [];
 
-    await Promise.all(
-        notifiers.map(async (n) => {
-            try {
-                await n.send(title, text);
-            } catch (e) {
-                errors.push(`${n.constructor.name}: ${e}`);
-            }
-        })
-    );
+    settled.forEach((r, i) => {
+        if (r.status === 'fulfilled') {
+            sent += 1;
+            return;
+        }
+        const notifierName = notifiers[i]?.constructor?.name ?? `Notifier#${i}`;
+        const detail = r.reason instanceof Error ? r.reason.message : String(r.reason);
+        errors.push(`${notifierName}: ${detail}`);
+    });
 
-    if (errors.length > 0) {
-        console.error('Notify errors:', errors.join(', '));
-    }
+    if (errors.length > 0) console.error('Notify errors:', errors.join(', '));
+
+    return { attempted: notifiers.length, sent, failed: errors.length, errors };
 }

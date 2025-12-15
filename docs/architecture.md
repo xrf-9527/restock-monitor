@@ -67,6 +67,8 @@
 
 通知请求会使用与探测相同的默认超时（由 `TIMEOUT_SEC` 推导），单个渠道失败不会阻塞其他渠道。
 
+为避免“已判定补货但通知瞬时失败导致漏报”，当 **OUT → IN** 触发通知时如果所有渠道都发送失败，后续在目标保持 **IN** 的情况下会继续重试，直到至少一个渠道发送成功为止。
+
 ## 安全与访问控制（建议开启）
 
 本仓库提供可选的端点保护：配置 `ADMIN_TOKEN`（secret）后，以下端点需要鉴权：
@@ -92,7 +94,7 @@ curl -H "Authorization: Bearer $ADMIN_TOKEN" http://localhost:8787/status
 
 - `TIMEOUT_SEC`：请求超时秒数（默认 15）
 - `CONFIRM_DELAY_MS`：二次确认延迟毫秒（默认 2000）
-- `IN_CONFIRMATIONS_REQUIRED`：连续确认次数（默认 2）
+- `IN_CONFIRMATIONS_REQUIRED`：连续确认次数（默认 1）
 - `ERROR_STREAK_NOTIFY_THRESHOLD`：错误通知阈值（默认 5）
 - `ERROR_NOTIFY_COOLDOWN_SEC`：错误通知冷却（默认 1800）
 - `ALERT_PREFIX`：机器人关键词前缀（可选）

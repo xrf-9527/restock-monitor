@@ -238,7 +238,7 @@ export async function runCheck(env: Env): Promise<string> {
     const state = await loadState(env);
     const now = Math.floor(Date.now() / 1000);
 
-    const inConfirmationsRequired = clampInt(envInt(env.IN_CONFIRMATIONS_REQUIRED, 2), 1, 10);
+    const inConfirmationsRequired = clampInt(envInt(env.IN_CONFIRMATIONS_REQUIRED, 1), 1, 10);
     const errorStreakNotifyThreshold = clampInt(envInt(env.ERROR_STREAK_NOTIFY_THRESHOLD, 5), 1, 100);
     const errorNotifyCooldownSec = clampInt(envInt(env.ERROR_NOTIFY_COOLDOWN_SEC, 1800), 0, 86400);
 
@@ -246,17 +246,29 @@ export async function runCheck(env: Env): Promise<string> {
 
     for (const target of TARGETS) {
         const name = target.name;
-        const s: TargetState = state[name] || {
+        const s: TargetState = {
             status: 'OUT',
+            inSinceTs: 0,
             inStreak: 0,
             errStreak: 0,
             lastErrNotifyTs: 0,
+            lastInNotifyAttemptTs: 0,
+            lastInNotifyOkTs: 0,
             lastUsedUrl: null,
             lastReason: '',
             ts: 0,
+            ...(state[name] as Partial<TargetState> | undefined),
         };
 
-        let { status: prevStatus, inStreak, errStreak, lastErrNotifyTs } = s;
+        let {
+            status: prevStatus,
+            inSinceTs,
+            inStreak,
+            errStreak,
+            lastErrNotifyTs,
+            lastInNotifyAttemptTs,
+            lastInNotifyOkTs,
+        } = s;
 
         const result = await probeTarget(target, env);
 
@@ -270,16 +282,19 @@ export async function runCheck(env: Env): Promise<string> {
             ) {
                 const title = '⚠️ 补货监控异常';
                 const text = `${name}\n原因: ${result.reason}\n建议: 检查网络/WAF/关键词/域名可达性`;
-                await notifyAll(notifiers, title, text);
-                lastErrNotifyTs = now;
+                const notifyResult = await notifyAll(notifiers, title, text);
+                if (notifyResult.sent > 0) lastErrNotifyTs = now;
             }
 
             // ERROR 不改变 prevStatus
             state[name] = {
                 status: prevStatus,
+                inSinceTs,
                 inStreak,
                 errStreak,
                 lastErrNotifyTs,
+                lastInNotifyAttemptTs,
+                lastInNotifyOkTs,
                 lastUsedUrl: result.usedUrl,
                 lastReason: result.reason,
                 ts: now,
@@ -296,29 +311,45 @@ export async function runCheck(env: Env): Promise<string> {
                 changes.push(`${name}: IN -> OUT (${result.usedUrl})`);
             }
             prevStatus = 'OUT';
+            inSinceTs = 0;
         } else if (result.status === 'IN') {
             if (prevStatus === 'OUT') {
                 inStreak += 1;
                 if (inStreak >= inConfirmationsRequired) {
                     // 达到连续确认次数：认定补货
                     prevStatus = 'IN';
+                    inSinceTs = now;
                     const title = '🎉 可能补货了（OUT → IN）';
                     const text = `${name}\n入口: ${result.usedUrl}\n连续确认: ${inStreak}/${inConfirmationsRequired}\n提示: 立即打开下单页尝试加入购物车/结算`;
-                    await notifyAll(notifiers, title, text);
+                    const notifyResult = await notifyAll(notifiers, title, text);
+                    lastInNotifyAttemptTs = now;
+                    if (notifyResult.sent > 0) lastInNotifyOkTs = now;
                     changes.push(`${name}: OUT -> IN (${result.usedUrl})`);
                 }
             } else {
                 // 已经是 IN，维持
                 prevStatus = 'IN';
                 inStreak = Math.max(inStreak, inConfirmationsRequired);
+
+                // 如果补货通知在状态切换时全部失败：后续在 IN 状态下继续重试，直到至少一个渠道发送成功
+                if (notifiers.length > 0 && lastInNotifyOkTs < inSinceTs) {
+                    const title = '🎉 可能补货了（OUT → IN）';
+                    const text = `${name}\n入口: ${result.usedUrl}\n提示: 立即打开下单页尝试加入购物车/结算\n(补货通知重试)`;
+                    const notifyResult = await notifyAll(notifiers, title, text);
+                    lastInNotifyAttemptTs = now;
+                    if (notifyResult.sent > 0) lastInNotifyOkTs = now;
+                }
             }
         }
 
         state[name] = {
             status: prevStatus,
+            inSinceTs,
             inStreak,
             errStreak,
             lastErrNotifyTs,
+            lastInNotifyAttemptTs,
+            lastInNotifyOkTs,
             lastUsedUrl: result.usedUrl,
             lastReason: result.reason,
             ts: now,
