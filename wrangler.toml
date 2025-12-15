@@ -1,0 +1,33 @@
+name = "restock-monitor"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+
+# KV 命名空间绑定 - 用于存储状态
+# 部署前需要创建: npx wrangler kv namespace create STOCK_STATE
+# 然后将返回的 id 填入下方
+[[kv_namespaces]]
+binding = "STOCK_STATE"
+id = "YOUR_KV_NAMESPACE_ID"  # 部署时替换为实际 ID
+preview_id = "YOUR_PREVIEW_KV_NAMESPACE_ID"  # 本地开发用，可以和 id 相同
+
+# Cron Triggers - 每 2 分钟执行一次
+[triggers]
+crons = ["*/2 * * * *"]
+
+# 环境变量（非敏感信息）
+[vars]
+TIMEOUT_SEC = "15"
+CONFIRM_DELAY_MS = "2000"
+IN_CONFIRMATIONS_REQUIRED = "2"
+ERROR_STREAK_NOTIFY_THRESHOLD = "5"
+ERROR_NOTIFY_COOLDOWN_SEC = "1800"
+ALERT_PREFIX = ""
+
+# Secrets（敏感信息）通过 wrangler secret put 添加:
+# - ADMIN_TOKEN (可选：保护 HTTP 端点)
+# - TG_BOT_TOKEN
+# - TG_CHAT_ID
+# - FEISHU_WEBHOOK_URL
+# - FEISHU_SECRET
+# - DINGTALK_WEBHOOK_URL
+# - DINGTALK_SECRET
