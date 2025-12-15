@@ -1,14 +1,14 @@
 name = "restock-monitor"
 main = "src/index.ts"
-compatibility_date = "2024-12-01"
+compatibility_date = "2024-12-15"
 
 # KV 命名空间绑定 - 用于存储状态
 # 部署前需要创建: npx wrangler kv namespace create STOCK_STATE
 # 然后将返回的 id 填入下方
 [[kv_namespaces]]
 binding = "STOCK_STATE"
-id = "YOUR_KV_NAMESPACE_ID"  # 部署时替换为实际 ID
-preview_id = "YOUR_PREVIEW_KV_NAMESPACE_ID"  # 本地开发用，可以和 id 相同
+id = "8cf958b69cf642c8a4c511fb9246c02a"
+preview_id = "296007bfeff442c7ab6a986d01dd89b5"
 
 # Cron Triggers - 每 2 分钟执行一次
 [triggers]

@@ -2,6 +2,14 @@
 
 补货监控 Cloudflare Worker，用于监控 **BandwagonHost MegaBox Pro (pid=157)** 和 **DMIT LAX.Pro.MALIBU (pid=186)** 的库存状态。
 
+## 部署状态
+
+- 🚀 **Worker URL**: `https://restock-monitor.zjlgdx.workers.dev`
+- ⏰ **定时任务**: 每 2 分钟自动执行
+- 📢 **通知渠道**: Telegram, 飞书
+- 💾 **KV 存储**: 已配置
+- 🔒 **Secrets**: 已配置
+
 ## 功能特性
 
 - 🔍 **官方下单页检测**：直接抓取官方购物车页面，判断"是否能买"
