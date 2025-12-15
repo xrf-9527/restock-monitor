@@ -1,0 +1,23 @@
+# 本地开发环境变量
+# 复制此文件为 .dev.vars 并填入实际值
+
+# Telegram 配置
+TG_BOT_TOKEN=your_telegram_bot_token
+TG_CHAT_ID=your_telegram_chat_id
+
+# 飞书群机器人配置
+FEISHU_WEBHOOK_URL=https://open.feishu.cn/open-apis/bot/v2/hook/your_hook_id
+# 如果启用签名校验，填入 secret
+FEISHU_SECRET=
+
+# 钉钉群机器人配置
+DINGTALK_WEBHOOK_URL=https://oapi.dingtalk.com/robot/send?access_token=your_access_token
+# 如果启用加签，填入 secret (SEC 开头)
+DINGTALK_SECRET=
+
+# 如果机器人启用了关键词安全策略，设置消息前缀
+# 例如：监控报警
+ALERT_PREFIX=
+
+# 可选：保护 HTTP 端点（Authorization: Bearer <token> 或 X-Admin-Token）
+ADMIN_TOKEN=
