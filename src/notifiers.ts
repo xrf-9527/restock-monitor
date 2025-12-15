@@ -68,7 +68,6 @@ export class TelegramNotifier implements Notifier {
                 body: JSON.stringify({
                     chat_id: this.chatId,
                     text: `${title}\n${text}`,
-                    parse_mode: 'HTML',
                 }),
             },
             this.timeoutMs

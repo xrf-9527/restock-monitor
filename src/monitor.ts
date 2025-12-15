@@ -108,8 +108,10 @@ async function probeTarget(target: Target, env: Env): Promise<ProbeResult> {
     const confirmDelayMs = clampInt(envInt(env.CONFIRM_DELAY_MS, 2000), 0, 60_000);
 
     let lastReason = 'fetch_failed';
+    let lastUsedUrl: string | null = null;
 
     for (const url of target.urls) {
+        lastUsedUrl = url;
         const { html, status } = await fetchUrl(url, timeoutMs);
 
         if (!html) {
@@ -137,13 +139,14 @@ async function probeTarget(target: Target, env: Env): Promise<ProbeResult> {
 
         const { html: html2, status: status2 } = await fetchUrl(url, timeoutMs);
 
-        if (!html2 || !sanityOk(html2, target.mustContainAny)) {
-            return {
-                ok: false,
-                status: 'ERROR',
-                usedUrl: url,
-                reason: `confirm_failed_http_${status2}`,
-            };
+        if (!html2) {
+            lastReason = `confirm_http_${status2 || 'error'}`;
+            continue;
+        }
+
+        if (!sanityOk(html2, target.mustContainAny)) {
+            lastReason = `confirm_sanity_failed@${url}`;
+            continue;
         }
 
         if (matchAnyRegex(html2, target.outOfStockRegex)) {
@@ -166,7 +169,7 @@ async function probeTarget(target: Target, env: Env): Promise<ProbeResult> {
     return {
         ok: false,
         status: 'ERROR',
-        usedUrl: null,
+        usedUrl: lastUsedUrl,
         reason: lastReason,
     };
 }

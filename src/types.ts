@@ -38,9 +38,7 @@ export interface TargetState {
 /**
  * 全局状态（存储在 KV 中）
  */
-export interface State {
-    [targetName: string]: TargetState;
-}
+export type State = Partial<Record<string, TargetState>>;
 
 /**
  * 环境变量接口

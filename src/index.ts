@@ -15,7 +15,7 @@ function responseHeaders(contentType: string): Record<string, string> {
 }
 
 function methodAllowed(method: string): boolean {
-    return method === 'GET' || method === 'HEAD';
+    return method === 'GET';
 }
 
 function readBearerToken(request: Request): string | null {
@@ -46,7 +46,7 @@ function methodNotAllowed(): Response {
         status: 405,
         headers: {
             ...responseHeaders('text/plain; charset=utf-8'),
-            'Allow': 'GET, HEAD',
+            'Allow': 'GET',
         },
     });
 }
