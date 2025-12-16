@@ -5,7 +5,7 @@
 ## 部署状态
 
 - 🚀 **访问地址**: `https://restock.xrf.sh`
-- ⏰ **定时任务**: 每 2 分钟自动执行
+- ⏰ **定时任务**: 每 5 分钟自动执行
 - 📢 **通知渠道**: Telegram, 飞书
 - 💾 **KV 存储**: 已配置
 - 🔒 **Secrets**: 已配置
@@ -14,8 +14,9 @@
 
 - 🔍 **官方下单页检测**：直接抓取官方购物车页面，判断"是否能买"
 - 🛡️ **防误报机制**：页面健康校验 + 二次确认 + 连续 N 次确认
+- 🚀 **WAF 智能绕过**：遇到 403/429/503 时自动使用 Browser Rendering 真实浏览器重试
 - 📢 **多通道通知**：支持 Telegram、飞书、钉钉
-- ⏰ **定时执行**：每 2 分钟自动检查（可调）
+- ⏰ **定时执行**：每 5 分钟自动检查（可调）
 - 💾 **状态持久化**：使用 Cloudflare KV 存储状态
 - 📚 **架构说明**：见 `docs/architecture.md`
 
@@ -66,7 +67,23 @@ binding = "STOCK_STATE"
 id = "你的实际 ID"
 ```
 
-### 2. 添加 Secrets
+### 2. 配置 Browser Rendering（可选，推荐）
+
+Browser Rendering 用于绕过 WAF 拦截。`wrangler.toml` 中已包含以下配置：
+
+```toml
+[browser]
+binding = "BROWSER"
+
+compatibility_flags = ["nodejs_compat"]
+```
+
+注意：
+- Browser Rendering 是 Cloudflare Workers 付费功能（包含在 Workers Paid 计划中）
+- 如果不需要或没有付费计划，可以删除 `[browser]` 配置段，系统会自动回退到普通 fetch
+- 该功能仅在遇到 403/429/503 错误时触发，不会影响正常请求
+
+### 3. 添加 Secrets
 
 ```bash
 # 可选：保护 HTTP 端点（/、/check、/status）
@@ -85,7 +102,7 @@ npx wrangler secret put DINGTALK_WEBHOOK_URL
 npx wrangler secret put DINGTALK_SECRET
 ```
 
-### 3. 部署
+### 4. 部署
 
 ```bash
 npm run deploy
