@@ -114,7 +114,8 @@ export async function fetchUrl(
 export async function fetchWithBrowser(
     url: string,
     timeoutMs: number,
-    browserBinding: BrowserBinding
+    browserBinding: BrowserBinding,
+    userAgent: string
 ): Promise<{ html: string | null; status: number }> {
     let browser = null;
     try {
@@ -123,6 +124,9 @@ export async function fetchWithBrowser(
 
         // 设置超时
         page.setDefaultTimeout(timeoutMs);
+
+        // 设置 User-Agent (关键：防止被识别为 HeadlessChrome)
+        await page.setUserAgent(userAgent);
 
         // 导航到目标页面
         const response = await page.goto(url, {

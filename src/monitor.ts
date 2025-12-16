@@ -63,7 +63,7 @@ async function probeTarget(target: Target, env: Env, browserHeaders: BrowserHead
         // 降级策略：普通 fetch 被阻止时，尝试 Browser Rendering
         if (!html && shouldFallbackToBrowser(status) && env.BROWSER) {
             console.log(`[Browser Fallback] ${url} got ${status}, trying Browser Rendering...`);
-            const browserResult = await fetchWithBrowser(url, timeoutMs, env.BROWSER);
+            const browserResult = await fetchWithBrowser(url, timeoutMs, env.BROWSER, browserHeaders.userAgent);
             html = browserResult.html;
             status = browserResult.status;
             if (html) {
@@ -99,7 +99,7 @@ async function probeTarget(target: Target, env: Env, browserHeaders: BrowserHead
         // 二次确认也使用降级策略
         if (!html2 && shouldFallbackToBrowser(status2) && env.BROWSER) {
             console.log(`[Browser Fallback] Confirm ${url} got ${status2}, trying Browser Rendering...`);
-            const browserResult = await fetchWithBrowser(url, timeoutMs, env.BROWSER);
+            const browserResult = await fetchWithBrowser(url, timeoutMs, env.BROWSER, browserHeaders.userAgent);
             html2 = browserResult.html;
             status2 = browserResult.status;
         }
