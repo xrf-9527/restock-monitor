@@ -16,9 +16,10 @@ binding = "STOCK_STATE"
 id = "8cf958b69cf642c8a4c511fb9246c02a"
 preview_id = "296007bfeff442c7ab6a986d01dd89b5"
 
-# Cron Triggers - 每 2 分钟执行一次
+# Cron Triggers - 每 5 分钟执行一次
+# KV 写入免费额度 1000次/天，每5分钟=288次/天(约29%)
 [triggers]
-crons = ["*/2 * * * *"]
+crons = ["*/5 * * * *"]
 
 # 环境变量（非敏感信息）
 [vars]
