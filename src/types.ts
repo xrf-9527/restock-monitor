@@ -44,11 +44,22 @@ export interface TargetState {
 export type State = Partial<Record<string, TargetState>>;
 
 /**
+ * Browser Rendering 绑定类型
+ * 与 @cloudflare/puppeteer 的 BrowserWorker 类型兼容
+ */
+export interface BrowserBinding {
+    fetch: typeof fetch;
+}
+
+/**
  * 环境变量接口
  */
 export interface Env {
     // KV 绑定
     STOCK_STATE: KVNamespace;
+
+    // Browser Rendering 绑定（可选，用于绕过 WAF）
+    BROWSER?: BrowserBinding;
 
     // 可选：保护 HTTP 端点（Authorization: Bearer <token>）
     ADMIN_TOKEN?: string;

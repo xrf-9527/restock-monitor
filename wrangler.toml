@@ -1,6 +1,7 @@
 name = "restock-monitor"
 main = "src/index.ts"
 compatibility_date = "2024-12-15"
+compatibility_flags = ["nodejs_compat"]
 
 # 自定义域名配置
 routes = [
@@ -29,6 +30,10 @@ ERROR_NOTIFY_COOLDOWN_SEC = "1800"
 ALERT_PREFIX = ""
 USER_AGENT = ""
 TARGETS_JSON = ""
+
+# Browser Rendering 绑定 - 用于绕过 WAF/反爬
+[browser]
+binding = "BROWSER"
 
 # Workers Logs 配置 - 用于日志记录和调试
 [observability]

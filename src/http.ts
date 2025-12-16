@@ -3,8 +3,9 @@
  * 负责构建浏览器请求头和发送 HTTP 请求
  */
 
-import type { Env } from './types';
+import type { Env, BrowserBinding } from './types';
 import { envString } from './utils';
+import puppeteer from '@cloudflare/puppeteer';
 
 /**
  * 默认浏览器请求头（Chrome on Windows）
@@ -103,5 +104,50 @@ export async function fetchUrl(
         return { html: null, status: 0 };
     } finally {
         clearTimeout(timeoutId);
+    }
+}
+
+/**
+ * 使用 Browser Rendering 获取页面内容
+ * 适用于被 WAF/反爬阻止的站点
+ */
+export async function fetchWithBrowser(
+    url: string,
+    timeoutMs: number,
+    browserBinding: BrowserBinding
+): Promise<{ html: string | null; status: number }> {
+    let browser = null;
+    try {
+        browser = await puppeteer.launch(browserBinding);
+        const page = await browser.newPage();
+
+        // 设置超时
+        page.setDefaultTimeout(timeoutMs);
+
+        // 导航到目标页面
+        const response = await page.goto(url, {
+            waitUntil: 'domcontentloaded',
+            timeout: timeoutMs,
+        });
+
+        const status = response?.status() ?? 0;
+
+        if (status >= 200 && status < 300) {
+            const html = await page.content();
+            return { html, status };
+        }
+
+        return { html: null, status };
+    } catch (error) {
+        console.error('Browser Rendering error:', error);
+        return { html: null, status: 0 };
+    } finally {
+        if (browser) {
+            try {
+                await browser.close();
+            } catch {
+                // 忽略关闭错误
+            }
+        }
     }
 }
