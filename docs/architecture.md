@@ -14,6 +14,7 @@
 - 运行环境：Cloudflare Workers
 - 定时调度：Cron Triggers（见 `wrangler.toml` 的 `[triggers]`）
 - 状态存储：Cloudflare KV（绑定 `STOCK_STATE`）
+- WAF 绕过：Browser Rendering（绑定 `BROWSER`，使用 @cloudflare/puppeteer）
 - 入口文件：`src/index.ts`
   - `fetch()`：HTTP 端点（手动触发/查询状态）
   - `scheduled()`：定时触发检查
@@ -35,11 +36,12 @@
 
 探测流程（`probeTarget`）：
 
-1. 拉取页面（带超时 `TIMEOUT_SEC`，并设置 `User-Agent`/`no-cache` 请求头）
-2. 通过 `mustContainAny` 做 sanity check，不通过则尝试下一个 URL
-3. 若命中缺货正则：判定 OUT
-4. 否则“看起来 IN”，等待 `CONFIRM_DELAY_MS` 后对同一 URL 再抓取一次进行二次确认
-5. 二次确认仍不缺货：返回 IN；二次确认失败：返回 ERROR
+1. 拉取页面（带超时 `TIMEOUT_SEC`，并设置完整的浏览器请求头：`User-Agent`、`Referer`、`Sec-Fetch-*` 等）
+2. WAF 智能回退：如遇到 403/429/503 响应，自动使用 Browser Rendering（真实 Chromium 浏览器）重试
+3. 通过 `mustContainAny` 做 sanity check，不通过则尝试下一个 URL
+4. 若命中缺货正则：判定 OUT
+5. 否则"看起来 IN"，等待 `CONFIRM_DELAY_MS` 后对同一 URL 再抓取一次进行二次确认（同样支持 WAF 回退）
+6. 二次确认仍不缺货：返回 IN；二次确认失败：返回 ERROR
 
 ## 状态机与告警策略
 
@@ -117,7 +119,10 @@ curl -H "Authorization: Bearer $ADMIN_TOKEN" http://localhost:8787/status
 ## 常见问题与调优
 
 - 误报补货：优先调整 `mustContainAny`（sanity check），其次更新 `outOfStockRegex` 文案匹配
-- 经常 ERROR：可能是 WAF/限流/页面改版；可增加 `urls` 兜底入口、适当增大 `TIMEOUT_SEC`，并检查请求头/域名可达性
+- 经常 ERROR：可能是 WAF/限流/页面改版
+  - 系统已内置 Browser Rendering 回退机制（遇到 403/429/503 自动使用真实浏览器重试）
+  - 如仍有问题，可增加 `urls` 兜底入口、适当增大 `TIMEOUT_SEC`，并检查域名可达性
+  - 查看 Workers Logs 中的详细错误信息（已启用 `observability.logs`）
 - 通知失败：查看 Worker 日志里各渠道的错误详情（已包含状态码与部分响应内容）
 
 ## 参考链接（官方）
