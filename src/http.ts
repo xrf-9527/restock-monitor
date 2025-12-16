@@ -125,12 +125,45 @@ export async function fetchWithBrowser(
         // 设置超时
         page.setDefaultTimeout(timeoutMs);
 
+        // 设置 Viewport
+        await page.setViewport({ width: 1920, height: 1080 });
+
+        // 注入隐身脚本 (Stealth Mode)
+        await page.evaluateOnNewDocument(() => {
+            // Pass the Webdriver Test.
+            // @ts-ignore
+            Object.defineProperty(navigator, 'webdriver', {
+                get: () => false,
+            });
+
+            // Mock window.chrome
+            // @ts-ignore
+            (window as any).chrome = {
+                runtime: {},
+                loadTimes: function () { },
+                csi: function () { },
+                app: {}
+            };
+
+            // Mock plugins
+            // @ts-ignore
+            Object.defineProperty(navigator, 'plugins', {
+                get: () => [1, 2, 3, 4, 5],
+            });
+
+            // Mock languages
+            // @ts-ignore
+            Object.defineProperty(navigator, 'languages', {
+                get: () => ['en-US', 'en'],
+            });
+        });
+
         // 设置 User-Agent (关键：防止被识别为 HeadlessChrome)
         await page.setUserAgent(userAgent);
 
         // 导航到目标页面
         const response = await page.goto(url, {
-            waitUntil: 'domcontentloaded',
+            waitUntil: 'networkidle2', // 等待网络空闲，确保加载更多资源
             timeout: timeoutMs,
         });
 
