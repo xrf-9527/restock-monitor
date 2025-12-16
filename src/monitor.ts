@@ -7,7 +7,7 @@ import type { Env, Target, ProbeResult, State, TargetState } from './types';
 import { buildNotifiers, notifyAll } from './notifiers';
 import { envInt, clampInt, formatBeijingTime, DEFAULTS } from './utils';
 import { getTargets } from './config';
-import { buildBrowserHeaders, fetchUrl, type BrowserHeaders } from './http';
+import { buildBrowserHeaders, fetchUrl, fetchWithBrowser, type BrowserHeaders } from './http';
 import { loadState, saveState } from './state';
 
 // 重新导出以保持向后兼容
@@ -38,6 +38,14 @@ function delay(ms: number): Promise<void> {
 }
 
 /**
+ * 判断是否应该使用 Browser Rendering 降级
+ * 403/429 等状态码表示被 WAF/限流阻止
+ */
+function shouldFallbackToBrowser(status: number): boolean {
+    return status === 403 || status === 429 || status === 503;
+}
+
+/**
  * 探测单个目标
  */
 async function probeTarget(target: Target, env: Env, browserHeaders: BrowserHeaders): Promise<ProbeResult> {
@@ -50,7 +58,18 @@ async function probeTarget(target: Target, env: Env, browserHeaders: BrowserHead
 
     for (const url of target.urls) {
         lastUsedUrl = url;
-        const { html, status } = await fetchUrl(url, timeoutMs, browserHeaders);
+        let { html, status } = await fetchUrl(url, timeoutMs, browserHeaders);
+
+        // 降级策略：普通 fetch 被阻止时，尝试 Browser Rendering
+        if (!html && shouldFallbackToBrowser(status) && env.BROWSER) {
+            console.log(`[Browser Fallback] ${url} got ${status}, trying Browser Rendering...`);
+            const browserResult = await fetchWithBrowser(url, timeoutMs, env.BROWSER);
+            html = browserResult.html;
+            status = browserResult.status;
+            if (html) {
+                console.log(`[Browser Fallback] Success for ${url}`);
+            }
+        }
 
         if (!html) {
             lastReason = `http_${status || 'error'}`;
@@ -75,7 +94,15 @@ async function probeTarget(target: Target, env: Env, browserHeaders: BrowserHead
         // 看起来 IN：做一次短延迟二次确认（同 URL）
         await delay(confirmDelayMs);
 
-        const { html: html2, status: status2 } = await fetchUrl(url, timeoutMs, browserHeaders);
+        let { html: html2, status: status2 } = await fetchUrl(url, timeoutMs, browserHeaders);
+
+        // 二次确认也使用降级策略
+        if (!html2 && shouldFallbackToBrowser(status2) && env.BROWSER) {
+            console.log(`[Browser Fallback] Confirm ${url} got ${status2}, trying Browser Rendering...`);
+            const browserResult = await fetchWithBrowser(url, timeoutMs, env.BROWSER);
+            html2 = browserResult.html;
+            status2 = browserResult.status;
+        }
 
         if (!html2) {
             lastReason = `confirm_http_${status2 || 'error'}`;
@@ -165,7 +192,12 @@ async function handleProbeError(
         const title = '⚠️ 补货监控异常';
         const text = `${name}\n原因: ${result.reason}\n建议: 检查网络/WAF/关键词/域名可达性`;
         const notifyResult = await notifyAll(notifiers, title, text);
-        if (notifyResult.sent > 0) ctx.lastErrNotifyTs = now;
+        if (notifyResult.sent > 0) {
+            ctx.lastErrNotifyTs = now;
+            // 重置错误计数，避免每次冷却期结束后重复通知
+            // 需要再次累积足够的连续错误才会再次通知
+            ctx.errStreak = 0;
+        }
     }
 
     return ctx;

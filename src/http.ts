@@ -3,8 +3,9 @@
  * 负责构建浏览器请求头和发送 HTTP 请求
  */
 
-import type { Env } from './types';
+import type { Env, BrowserBinding } from './types';
 import { envString } from './utils';
+import puppeteer from '@cloudflare/puppeteer';
 
 /**
  * 默认浏览器请求头（Chrome on Windows）
@@ -69,6 +70,10 @@ export async function fetchUrl(
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     try {
+        // 构建 Referer：使用目标站点首页，模拟站内导航
+        const urlObj = new URL(url);
+        const referer = `${urlObj.protocol}//${urlObj.host}/`;
+
         const response = await fetch(url, {
             headers: {
                 'User-Agent': browserHeaders.userAgent,
@@ -77,12 +82,13 @@ export async function fetchUrl(
                 'Accept-Encoding': 'gzip, deflate, br',
                 'Cache-Control': 'no-cache',
                 'Pragma': 'no-cache',
+                'Referer': referer,
                 'Sec-Ch-Ua': browserHeaders.secChUa,
                 'Sec-Ch-Ua-Mobile': browserHeaders.secChUaMobile,
                 'Sec-Ch-Ua-Platform': browserHeaders.secChUaPlatform,
                 'Sec-Fetch-Dest': 'document',
                 'Sec-Fetch-Mode': 'navigate',
-                'Sec-Fetch-Site': 'none',
+                'Sec-Fetch-Site': 'same-origin',
                 'Sec-Fetch-User': '?1',
                 'Upgrade-Insecure-Requests': '1',
             },
@@ -98,5 +104,50 @@ export async function fetchUrl(
         return { html: null, status: 0 };
     } finally {
         clearTimeout(timeoutId);
+    }
+}
+
+/**
+ * 使用 Browser Rendering 获取页面内容
+ * 适用于被 WAF/反爬阻止的站点
+ */
+export async function fetchWithBrowser(
+    url: string,
+    timeoutMs: number,
+    browserBinding: BrowserBinding
+): Promise<{ html: string | null; status: number }> {
+    let browser = null;
+    try {
+        browser = await puppeteer.launch(browserBinding);
+        const page = await browser.newPage();
+
+        // 设置超时
+        page.setDefaultTimeout(timeoutMs);
+
+        // 导航到目标页面
+        const response = await page.goto(url, {
+            waitUntil: 'domcontentloaded',
+            timeout: timeoutMs,
+        });
+
+        const status = response?.status() ?? 0;
+
+        if (status >= 200 && status < 300) {
+            const html = await page.content();
+            return { html, status };
+        }
+
+        return { html: null, status };
+    } catch (error) {
+        console.error('Browser Rendering error:', error);
+        return { html: null, status: 0 };
+    } finally {
+        if (browser) {
+            try {
+                await browser.close();
+            } catch {
+                // 忽略关闭错误
+            }
+        }
     }
 }
