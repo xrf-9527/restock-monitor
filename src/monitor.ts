@@ -358,10 +358,13 @@ export async function getStatus(env: Env): Promise<State> {
     const targets = getTargets(env);
     const filteredState: State = {};
 
-    // 只保留当前配置中的目标状态
+    // 返回所有当前配置的目标，即使还没有历史状态
     for (const target of targets) {
         if (fullState[target.name]) {
             filteredState[target.name] = fullState[target.name];
+        } else {
+            // 新添加的目标或还没有运行过检查，返回默认状态
+            filteredState[target.name] = getDefaultTargetState();
         }
     }
 
