@@ -1,6 +1,6 @@
 # Restock Monitor - Cloudflare Worker
 
-补货监控 Cloudflare Worker，用于监控 **BandwagonHost MegaBox Pro (pid=157)** 和 **DMIT LAX.Pro.MALIBU (pid=186)** 的库存状态。
+补货监控 Cloudflare Worker，用于监控 **BandwagonHost "传家宝"**、**MegaBox Pro** 和 **DMIT** 热门套餐的库存状态。
 
 ## 部署状态
 
@@ -126,6 +126,9 @@ npm run deploy
 
 | 套餐 | URL |
 |------|-----|
+| BandwagonHost THE PLAN | https://bwh81.net/cart.php?a=add&pid=147 |
+| BandwagonHost DC9 CN2 GIA Limited | https://bwh81.net/cart.php?a=add&pid=145 / 112 |
+| BandwagonHost BiggerBox Pro | https://bwh81.net/cart.php?a=add&pid=156 |
 | BandwagonHost MegaBox Pro | https://bwh81.net/cart.php?a=add&pid=157 |
 | DMIT LAX.Pro.MALIBU | https://www.dmit.io/cart.php?a=add&pid=186 |
 
