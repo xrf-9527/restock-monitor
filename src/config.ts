@@ -46,30 +46,6 @@ export const TARGETS: Target[] = [
             /We are currently out of stock on this plan\./i,
         ],
     },
-    {
-        name: 'BandwagonHost DC9 CN2 GIA Limited Edition (pid=145)',
-        urls: [
-            'https://bwh81.net/cart.php?a=add&pid=145',
-            'https://bandwagonhost.com/cart.php?a=add&pid=145',
-        ],
-        mustContainAny: ['Shopping Cart', 'Bandwagon Host'],
-        outOfStockRegex: [
-            /\bOut of Stock\b/i,
-            /We are currently out of stock on this plan\./i,
-        ],
-    },
-    {
-        name: 'BandwagonHost DC9 CN2 GIA Limited Edition (pid=112)',
-        urls: [
-            'https://bwh81.net/cart.php?a=add&pid=112',
-            'https://bandwagonhost.com/cart.php?a=add&pid=112',
-        ],
-        mustContainAny: ['Shopping Cart', 'Bandwagon Host'],
-        outOfStockRegex: [
-            /\bOut of Stock\b/i,
-            /We are currently out of stock on this plan\./i,
-        ],
-    },
 
     {
         name: 'DMIT LAX.Pro.MALIBU (pid=186)',
