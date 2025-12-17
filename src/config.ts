@@ -89,15 +89,7 @@ export const TARGETS: Target[] = [
             /We are currently out of stock on this item/i,
         ],
     },
-    {
-        name: 'DMIT LAX.EB.Wee (pid=189)',
-        urls: ['https://www.dmit.io/cart.php?a=add&pid=189'],
-        mustContainAny: ['DMIT, Inc.', 'Client Area', 'Shopping Cart'],
-        outOfStockRegex: [
-            /\bOut of Stock\b/i,
-            /We are currently out of stock on this item/i,
-        ],
-    },
+
 ];
 
 /** JSON 中正则表达式的格式 */
