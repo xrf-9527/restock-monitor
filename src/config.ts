@@ -46,6 +46,18 @@ export const TARGETS: Target[] = [
             /We are currently out of stock on this plan\./i,
         ],
     },
+    {
+        name: 'BandwagonHost THE PLAN v2 (pid=158)',
+        urls: [
+            'https://bwh88.net/cart.php?a=add&pid=158',
+            'https://bandwagonhost.com/cart.php?a=add&pid=158',
+        ],
+        mustContainAny: ['Shopping Cart', 'Bandwagon Host'],
+        outOfStockRegex: [
+            /\bOut of Stock\b/i,
+            /We are currently out of stock on this plan\./i,
+        ],
+    },
 
     {
         name: 'DMIT LAX.Pro.MALIBU (pid=186)',

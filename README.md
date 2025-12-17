@@ -127,6 +127,7 @@ npm run deploy
 | 套餐 | URL |
 |------|-----|
 | BandwagonHost THE PLAN | https://bwh81.net/cart.php?a=add&pid=147 |
+| BandwagonHost THE PLAN v2 | https://bwh88.net/cart.php?a=add&pid=158 |
 | BandwagonHost BiggerBox Pro | https://bwh81.net/cart.php?a=add&pid=156 |
 | BandwagonHost MegaBox Pro | https://bwh81.net/cart.php?a=add&pid=157 |
 | DMIT LAX.Pro.MALIBU | https://www.dmit.io/cart.php?a=add&pid=186 |
