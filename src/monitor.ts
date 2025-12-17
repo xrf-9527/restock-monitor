@@ -330,6 +330,15 @@ export async function runCheck(env: Env): Promise<string> {
         state[name] = buildTargetState(ctx, result, now);
     }
 
+    // 清理 KV 中已删除的目标（不在当前配置中的）
+    const currentTargetNames = new Set(targets.map(t => t.name));
+    for (const stateName of Object.keys(state)) {
+        if (!currentTargetNames.has(stateName)) {
+            console.log(`Cleaning up removed target: ${stateName}`);
+            delete state[stateName];
+        }
+    }
+
     await saveState(env, state);
 
     const timestamp = formatBeijingTime();
@@ -342,7 +351,22 @@ export async function runCheck(env: Env): Promise<string> {
 
 /**
  * 获取当前状态（用于 HTTP 查询）
+ * 只返回当前配置的监控目标的状态
  */
 export async function getStatus(env: Env): Promise<State> {
-    return await loadState(env);
+    const fullState = await loadState(env);
+    const targets = getTargets(env);
+    const filteredState: State = {};
+
+    // 返回所有当前配置的目标，即使还没有历史状态
+    for (const target of targets) {
+        if (fullState[target.name]) {
+            filteredState[target.name] = fullState[target.name];
+        } else {
+            // 新添加的目标或还没有运行过检查，返回默认状态
+            filteredState[target.name] = getDefaultTargetState();
+        }
+    }
+
+    return filteredState;
 }
