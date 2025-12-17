@@ -131,6 +131,8 @@ npm run deploy
 | BandwagonHost BiggerBox Pro | https://bwh81.net/cart.php?a=add&pid=156 |
 | BandwagonHost MegaBox Pro | https://bwh81.net/cart.php?a=add&pid=157 |
 | DMIT LAX.Pro.MALIBU | https://www.dmit.io/cart.php?a=add&pid=186 |
+| DMIT LAX.Pro.Wee | https://www.dmit.io/cart.php?a=add&pid=188 |
+| DMIT LAX.EB.Wee | https://www.dmit.io/cart.php?a=add&pid=189 |
 
 ## 配置说明
 
