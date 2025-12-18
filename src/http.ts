@@ -15,6 +15,52 @@ const DEFAULT_CHROME_MAJOR_VERSION = '131';
 const DEFAULT_SEC_CH_UA = `"Google Chrome";v="${DEFAULT_CHROME_MAJOR_VERSION}", "Chromium";v="${DEFAULT_CHROME_MAJOR_VERSION}", "Not_A Brand";v="24"`;
 const DEFAULT_SEC_CH_UA_PLATFORM = '"Windows"';
 
+/**
+ * 注入隐身脚本 (Stealth Mode)
+ * 防止被识别为 HeadlessChrome
+ */
+export async function injectStealthScripts(page: import('@cloudflare/puppeteer').Page) {
+    await page.evaluateOnNewDocument(() => {
+        // Pass the Webdriver Test.
+        // @ts-ignore
+        Object.defineProperty(navigator, 'webdriver', {
+            get: () => false,
+        });
+
+        // Mock window.chrome
+        // @ts-ignore
+        (window as any).chrome = {
+            runtime: {},
+            loadTimes: function () { },
+            csi: function () { },
+            app: {}
+        };
+
+        // Mock plugins
+        // @ts-ignore
+        Object.defineProperty(navigator, 'plugins', {
+            get: () => [1, 2, 3, 4, 5],
+        });
+
+        // Mock languages
+        // @ts-ignore
+        Object.defineProperty(navigator, 'languages', {
+            get: () => ['en-US', 'en', 'zh-CN', 'zh'],
+        });
+
+        // Mock permissions
+        // @ts-ignore
+        const originalQuery = window.navigator.permissions.query;
+        // @ts-ignore
+        window.navigator.permissions.query = (parameters) => (
+            parameters.name === 'notifications' ?
+                // @ts-ignore
+                Promise.resolve({ state: Notification.permission }) :
+                originalQuery(parameters)
+        );
+    });
+}
+
 export function extractChromeMajorVersion(userAgent: string): string | null {
     const match = userAgent.match(/\bChrome\/(\d+)\b/i);
     return match ? match[1] : null;
@@ -110,17 +156,17 @@ export async function fetchUrl(
 /**
  * 使用 Browser Rendering 获取页面内容
  * 适用于被 WAF/反爬阻止的站点
+ * 注意：Browser 实例由外部管理，此处不负责关闭
  */
 export async function fetchWithBrowser(
     url: string,
     timeoutMs: number,
-    browserBinding: BrowserBinding,
+    browser: import('@cloudflare/puppeteer').Browser,
     userAgent: string
 ): Promise<{ html: string | null; status: number }> {
-    let browser = null;
+    let page = null;
     try {
-        browser = await puppeteer.launch(browserBinding);
-        const page = await browser.newPage();
+        page = await browser.newPage();
 
         // 设置超时
         page.setDefaultTimeout(timeoutMs);
@@ -128,35 +174,8 @@ export async function fetchWithBrowser(
         // 设置 Viewport
         await page.setViewport({ width: 1920, height: 1080 });
 
-        // 注入隐身脚本 (Stealth Mode)
-        await page.evaluateOnNewDocument(() => {
-            // Pass the Webdriver Test.
-            // @ts-ignore
-            Object.defineProperty(navigator, 'webdriver', {
-                get: () => false,
-            });
-
-            // Mock window.chrome
-            // @ts-ignore
-            (window as any).chrome = {
-                runtime: {},
-                loadTimes: function () { },
-                csi: function () { },
-                app: {}
-            };
-
-            // Mock plugins
-            // @ts-ignore
-            Object.defineProperty(navigator, 'plugins', {
-                get: () => [1, 2, 3, 4, 5],
-            });
-
-            // Mock languages
-            // @ts-ignore
-            Object.defineProperty(navigator, 'languages', {
-                get: () => ['en-US', 'en'],
-            });
-        });
+        // 注入隐身脚本
+        await injectStealthScripts(page);
 
         // 设置 User-Agent (关键：防止被识别为 HeadlessChrome)
         await page.setUserAgent(userAgent);
@@ -179,9 +198,9 @@ export async function fetchWithBrowser(
         console.error('Browser Rendering error:', error);
         return { html: null, status: 0 };
     } finally {
-        if (browser) {
+        if (page) {
             try {
-                await browser.close();
+                await page.close();
             } catch {
                 // 忽略关闭错误
             }

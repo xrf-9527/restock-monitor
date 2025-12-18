@@ -9,6 +9,7 @@ import { envInt, clampInt, formatBeijingTime, DEFAULTS } from './utils';
 import { getTargets } from './config';
 import { buildBrowserHeaders, fetchUrl, fetchWithBrowser, type BrowserHeaders } from './http';
 import { loadState, saveState } from './state';
+import puppeteer from '@cloudflare/puppeteer';
 
 // 重新导出以保持向后兼容
 export { formatBeijingTime } from './utils';
@@ -48,7 +49,12 @@ function shouldFallbackToBrowser(status: number): boolean {
 /**
  * 探测单个目标
  */
-async function probeTarget(target: Target, env: Env, browserHeaders: BrowserHeaders): Promise<ProbeResult> {
+async function probeTarget(
+    target: Target,
+    env: Env,
+    browserHeaders: BrowserHeaders,
+    getBrowser: () => Promise<import('@cloudflare/puppeteer').Browser | null>
+): Promise<ProbeResult> {
     const timeoutSec = clampInt(envInt(env.TIMEOUT_SEC, DEFAULTS.TIMEOUT_SEC), 1, 120);
     const timeoutMs = timeoutSec * 1000;
     const confirmDelayMs = clampInt(envInt(env.CONFIRM_DELAY_MS, DEFAULTS.CONFIRM_DELAY_MS), 0, 60_000);
@@ -61,13 +67,16 @@ async function probeTarget(target: Target, env: Env, browserHeaders: BrowserHead
         let { html, status } = await fetchUrl(url, timeoutMs, browserHeaders);
 
         // 降级策略：普通 fetch 被阻止时，尝试 Browser Rendering
-        if (!html && shouldFallbackToBrowser(status) && env.BROWSER) {
-            console.log(`[Browser Fallback] ${url} got ${status}, trying Browser Rendering...`);
-            const browserResult = await fetchWithBrowser(url, timeoutMs, env.BROWSER, browserHeaders.userAgent);
-            html = browserResult.html;
-            status = browserResult.status;
-            if (html) {
-                console.log(`[Browser Fallback] Success for ${url}`);
+        if (!html && shouldFallbackToBrowser(status)) {
+            const browserInstance = await getBrowser();
+            if (browserInstance) {
+                console.log(`[Browser Fallback] ${url} got ${status}, trying Browser Rendering...`);
+                const browserResult = await fetchWithBrowser(url, timeoutMs, browserInstance, browserHeaders.userAgent);
+                html = browserResult.html;
+                status = browserResult.status;
+                if (html) {
+                    console.log(`[Browser Fallback] Success for ${url}`);
+                }
             }
         }
 
@@ -97,11 +106,14 @@ async function probeTarget(target: Target, env: Env, browserHeaders: BrowserHead
         let { html: html2, status: status2 } = await fetchUrl(url, timeoutMs, browserHeaders);
 
         // 二次确认也使用降级策略
-        if (!html2 && shouldFallbackToBrowser(status2) && env.BROWSER) {
-            console.log(`[Browser Fallback] Confirm ${url} got ${status2}, trying Browser Rendering...`);
-            const browserResult = await fetchWithBrowser(url, timeoutMs, env.BROWSER, browserHeaders.userAgent);
-            html2 = browserResult.html;
-            status2 = browserResult.status;
+        if (!html2 && shouldFallbackToBrowser(status2)) {
+            const browserInstance = await getBrowser();
+            if (browserInstance) {
+                console.log(`[Browser Fallback] Confirm ${url} got ${status2}, trying Browser Rendering...`);
+                const browserResult = await fetchWithBrowser(url, timeoutMs, browserInstance, browserHeaders.userAgent);
+                html2 = browserResult.html;
+                status2 = browserResult.status;
+            }
         }
 
         if (!html2) {
@@ -292,61 +304,89 @@ export async function runCheck(env: Env): Promise<string> {
         errorNotifyCooldownSec: clampInt(envInt(env.ERROR_NOTIFY_COOLDOWN_SEC, DEFAULTS.ERROR_NOTIFY_COOLDOWN_SEC), 0, 86400),
     };
 
+    let browser: import('@cloudflare/puppeteer').Browser | null = null;
+
+    // 惰性获取 Browser 实例
+    const getBrowser = async () => {
+        if (browser) return browser;
+        if (env.BROWSER) {
+            try {
+                console.log('Launching browser instance...');
+                browser = await puppeteer.launch(env.BROWSER);
+            } catch (e) {
+                console.error('Failed to launch browser:', e);
+            }
+        }
+        return browser;
+    };
+
     const changes: string[] = [];
 
-    for (const target of targets) {
-        const name = target.name;
-        const savedState = state[name] as Partial<TargetState> | undefined;
-        const defaultState = getDefaultTargetState();
-        const s: TargetState = { ...defaultState, ...savedState };
+    try {
+        for (const target of targets) {
+            const name = target.name;
+            const savedState = state[name] as Partial<TargetState> | undefined;
+            const defaultState = getDefaultTargetState();
+            const s: TargetState = { ...defaultState, ...savedState };
 
-        let ctx: StateContext = {
-            prevStatus: s.status,
-            inSinceTs: s.inSinceTs,
-            inStreak: s.inStreak,
-            errStreak: s.errStreak,
-            lastErrNotifyTs: s.lastErrNotifyTs,
-            lastInNotifyAttemptTs: s.lastInNotifyAttemptTs,
-            lastInNotifyOkTs: s.lastInNotifyOkTs,
-        };
+            let ctx: StateContext = {
+                prevStatus: s.status,
+                inSinceTs: s.inSinceTs,
+                inStreak: s.inStreak,
+                errStreak: s.errStreak,
+                lastErrNotifyTs: s.lastErrNotifyTs,
+                lastInNotifyAttemptTs: s.lastInNotifyAttemptTs,
+                lastInNotifyOkTs: s.lastInNotifyOkTs,
+            };
 
-        const result = await probeTarget(target, env, browserHeaders);
+            const result = await probeTarget(target, env, browserHeaders, getBrowser);
 
-        if (result.status === 'ERROR') {
-            ctx = await handleProbeError(ctx, result, name, now, config, notifiers);
+            if (result.status === 'ERROR') {
+                ctx = await handleProbeError(ctx, result, name, now, config, notifiers);
+                state[name] = buildTargetState(ctx, result, now);
+                continue;
+            }
+
+            // probe OK：清空错误计数
+            ctx.errStreak = 0;
+
+            if (result.status === 'OUT') {
+                ctx = handleOutOfStock(ctx, result, name, changes);
+            } else if (result.status === 'IN') {
+                ctx = await handleInStock(ctx, result, name, now, config, notifiers, changes);
+            }
+
             state[name] = buildTargetState(ctx, result, now);
-            continue;
         }
 
-        // probe OK：清空错误计数
-        ctx.errStreak = 0;
-
-        if (result.status === 'OUT') {
-            ctx = handleOutOfStock(ctx, result, name, changes);
-        } else if (result.status === 'IN') {
-            ctx = await handleInStock(ctx, result, name, now, config, notifiers, changes);
+        // 清理 KV 中已删除的目标（不在当前配置中的）
+        const currentTargetNames = new Set(targets.map(t => t.name));
+        for (const stateName of Object.keys(state)) {
+            if (!currentTargetNames.has(stateName)) {
+                console.log(`Cleaning up removed target: ${stateName}`);
+                delete state[stateName];
+            }
         }
 
-        state[name] = buildTargetState(ctx, result, now);
+        await saveState(env, state);
+
+        const timestamp = formatBeijingTime();
+        const msg = changes.length > 0
+            ? `[${timestamp}] State changes:\n${changes.join('\n')}`
+            : `[${timestamp}] OK - no changes`;
+        console.log(msg);
+        return msg;
+    } finally {
+        if (browser) {
+            console.log('Closing browser instance...');
+            try {
+                // @ts-ignore
+                await browser.close();
+            } catch (e) {
+                console.error('Error closing browser:', e);
+            }
+        }
     }
-
-    // 清理 KV 中已删除的目标（不在当前配置中的）
-    const currentTargetNames = new Set(targets.map(t => t.name));
-    for (const stateName of Object.keys(state)) {
-        if (!currentTargetNames.has(stateName)) {
-            console.log(`Cleaning up removed target: ${stateName}`);
-            delete state[stateName];
-        }
-    }
-
-    await saveState(env, state);
-
-    const timestamp = formatBeijingTime();
-    const msg = changes.length > 0
-        ? `[${timestamp}] State changes:\n${changes.join('\n')}`
-        : `[${timestamp}] OK - no changes`;
-    console.log(msg);
-    return msg;
 }
 
 /**
