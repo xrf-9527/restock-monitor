@@ -84,6 +84,14 @@ compatibility_flags = ["nodejs_compat"]
 - **按需计费**：超出免费额度后按 $0.09/浏览器小时计费
 - 如果不需要该功能，可以删除 `[browser]` 配置段，系统会自动回退到普通 fetch
 - 该功能仅在遇到 403/429/503 错误时触发，不会影响正常请求
+- **费用提示**：以上配额与价格仅供参考，请以 [Cloudflare Browser Rendering 官方文档](https://developers.cloudflare.com/browser-rendering/platform/limits/) 最新计费标准为准。
+
+### ⚠️ 关于并发与一致性的说明
+
+本系统使用 KV 存储状态，由于 Cloudflare KV 的最终一致性模型以及 Cron Trigger 的非严格串行触发特性：
+1. **Cron 重叠**：如果单次检查耗时超过 Cron 间隔（5分钟），可能出现多个 Workers 实例同时运行。
+2. **状态一致性**：在极端并发情况下，读取->检查->写入的流程可能存在竞态条件，导致状态更新丢失或短时间内重复发送通知（如多个实例同时判定为"补货"）。
+   *注：当前通过`CONFIRM_DELAY_MS`与连续确认机制大大降低了此概率，但在高频/高延迟场景下仍无法理论级避免。*
 
 ### 3. 添加 Secrets
 

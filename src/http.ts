@@ -3,9 +3,8 @@
  * 负责构建浏览器请求头和发送 HTTP 请求
  */
 
-import type { Env, BrowserBinding } from './types';
+import type { Env } from './types';
 import { envString } from './utils';
-import puppeteer from '@cloudflare/puppeteer';
 
 /**
  * 默认浏览器请求头（Chrome on Windows）
@@ -21,43 +20,60 @@ const DEFAULT_SEC_CH_UA_PLATFORM = '"Windows"';
  */
 export async function injectStealthScripts(page: import('@cloudflare/puppeteer').Page) {
     await page.evaluateOnNewDocument(() => {
+        /**
+         * 容错包装器：防止某个 Mock 失败导致整个脚本抛错
+         */
+        const safeDefine = (fn: () => void) => {
+            try { fn(); } catch (e) { console.debug('Stealth script injection error:', e); }
+        };
+
         // Pass the Webdriver Test.
-        // @ts-ignore
-        Object.defineProperty(navigator, 'webdriver', {
-            get: () => false,
+        safeDefine(() => {
+            // @ts-ignore
+            Object.defineProperty(navigator, 'webdriver', {
+                get: () => false,
+            });
         });
 
         // Mock window.chrome
-        // @ts-ignore
-        (window as any).chrome = {
-            runtime: {},
-            loadTimes: function () { },
-            csi: function () { },
-            app: {}
-        };
+        safeDefine(() => {
+            // @ts-ignore
+            (window as any).chrome = {
+                runtime: {},
+                loadTimes: function () { },
+                csi: function () { },
+                app: {}
+            };
+        });
 
         // Mock plugins
-        // @ts-ignore
-        Object.defineProperty(navigator, 'plugins', {
-            get: () => [1, 2, 3, 4, 5],
+        safeDefine(() => {
+            // @ts-ignore
+            Object.defineProperty(navigator, 'plugins', {
+                get: () => [1, 2, 3, 4, 5],
+            });
         });
 
         // Mock languages
-        // @ts-ignore
-        Object.defineProperty(navigator, 'languages', {
-            get: () => ['en-US', 'en', 'zh-CN', 'zh'],
+        safeDefine(() => {
+            // @ts-ignore
+            Object.defineProperty(navigator, 'languages', {
+                get: () => ['en-US', 'en', 'zh-CN', 'zh'],
+            });
         });
 
         // Mock permissions
-        // @ts-ignore
-        const originalQuery = window.navigator.permissions.query;
-        // @ts-ignore
-        window.navigator.permissions.query = (parameters) => (
-            parameters.name === 'notifications' ?
-                // @ts-ignore
-                Promise.resolve({ state: Notification.permission }) :
-                originalQuery(parameters)
-        );
+        safeDefine(() => {
+            // @ts-ignore
+            const originalQuery = window.navigator.permissions.query;
+            // @ts-ignore
+            window.navigator.permissions.query = (parameters) => (
+                parameters.name === 'notifications' ?
+                    // @ts-ignore
+                    Promise.resolve({ state: Notification.permission }) :
+                    originalQuery(parameters)
+            );
+        });
     });
 }
 
@@ -182,7 +198,7 @@ export async function fetchWithBrowser(
 
         // 导航到目标页面
         const response = await page.goto(url, {
-            waitUntil: 'networkidle2', // 等待网络空闲，确保加载更多资源
+            waitUntil: 'domcontentloaded', // 优化：仅等待 DOM 加载完成即可，无需等待网络空闲
             timeout: timeoutMs,
         });
 

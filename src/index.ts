@@ -110,7 +110,7 @@ Endpoints:
   GET /check   - 手动触发检查
   GET /status  - 查看当前状态
 
-Cron: */2 * * * * (每 2 分钟自动执行)
+Cron: */5 * * * * (每 5 分钟自动执行)
 
 监控目标:
 ${targetLines}
@@ -124,7 +124,7 @@ ${targetLines}
 
     /**
      * Cron Trigger 处理
-     * 每 2 分钟自动执行检查
+     * 每 5 分钟自动执行检查
      */
     async scheduled(
         controller: ScheduledController,
