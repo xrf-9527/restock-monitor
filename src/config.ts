@@ -7,7 +7,7 @@ import type { Env, Target } from './types';
 import { envString } from './utils';
 
 /**
- * 监控目标配置（两款套餐）
+ * 监控目标配置
  */
 export const TARGETS: Target[] = [
     {
@@ -22,62 +22,6 @@ export const TARGETS: Target[] = [
             /We are currently out of stock on this plan\./i,
         ],
     },
-    {
-        name: 'BandwagonHost BiggerBox Pro (pid=156)',
-        urls: [
-            'https://bwh81.net/cart.php?a=add&pid=156',
-            'https://bandwagonhost.com/cart.php?a=add&pid=156',
-        ],
-        mustContainAny: ['Shopping Cart', 'Bandwagon Host'],
-        outOfStockRegex: [
-            /\bOut of Stock\b/i,
-            /We are currently out of stock on this plan\./i,
-        ],
-    },
-    {
-        name: 'BandwagonHost THE PLAN (pid=147)',
-        urls: [
-            'https://bwh81.net/cart.php?a=add&pid=147',
-            'https://bandwagonhost.com/cart.php?a=add&pid=147',
-        ],
-        mustContainAny: ['Shopping Cart', 'Bandwagon Host'],
-        outOfStockRegex: [
-            /\bOut of Stock\b/i,
-            /We are currently out of stock on this plan\./i,
-        ],
-    },
-    {
-        name: 'BandwagonHost THE PLAN v2 (pid=158)',
-        urls: [
-            'https://bwh88.net/cart.php?a=add&pid=158',
-            'https://bandwagonhost.com/cart.php?a=add&pid=158',
-        ],
-        mustContainAny: ['Shopping Cart', 'Bandwagon Host'],
-        outOfStockRegex: [
-            /\bOut of Stock\b/i,
-            /We are currently out of stock on this plan\./i,
-        ],
-    },
-
-    {
-        name: 'DMIT LAX.Pro.MALIBU (pid=186)',
-        urls: ['https://www.dmit.io/cart.php?a=add&pid=186'],
-        mustContainAny: ['DMIT, Inc.', 'Client Area', 'Shopping Cart'],
-        outOfStockRegex: [
-            /\bOut of Stock\b/i,
-            /We are currently out of stock on this item/i,
-        ],
-    },
-    {
-        name: 'DMIT LAX.Pro.Wee (pid=188)',
-        urls: ['https://www.dmit.io/cart.php?a=add&pid=188'],
-        mustContainAny: ['DMIT, Inc.', 'Client Area', 'Shopping Cart'],
-        outOfStockRegex: [
-            /\bOut of Stock\b/i,
-            /We are currently out of stock on this item/i,
-        ],
-    },
-
 ];
 
 /** JSON 中正则表达式的格式 */
